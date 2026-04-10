@@ -1,0 +1,48 @@
+#cloud-config
+# BaumConfigure — user-data template
+# Copy to nodes/<nodeN>/user-data and fill in REPLACE_WITH_* values.
+# Generate password hash: mkpasswd -m sha-512
+# Generate SSH key:       ssh-keygen -t ed25519 -C "your@email.com"
+
+hostname: REPLACE_WITH_HOSTNAME
+manage_etc_hosts: true
+
+users:
+  - name: REPLACE_WITH_USERNAME
+    gecos: REPLACE_WITH_FULL_NAME
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    # Preferred: paste your public key here (cat ~/.ssh/id_ed25519.pub)
+    ssh_authorized_keys:
+      - REPLACE_WITH_SSH_PUBLIC_KEY
+    # Optional: set a password in addition to SSH key
+    # Generate with: mkpasswd -m sha-512
+    # passwd: "$6$rounds=4096$SALT$HASH"
+    # lock_passwd: false
+
+# Disable password SSH auth (recommended — use SSH keys only)
+ssh_pwauth: false
+disable_root: true
+
+# Packages installed on first boot
+packages:
+  - curl
+  - vim
+  - htop
+  - git
+  - unattended-upgrades
+  - apt-listchanges
+
+# Commands run after first boot
+runcmd:
+  - systemctl enable --now ssh
+  - timedatectl set-timezone REPLACE_WITH_TIMEZONE
+  # Enable unattended security updates
+  - dpkg-reconfigure -plow unattended-upgrades
+
+# Write any additional config files
+# write_files:
+#   - path: /etc/some/config
+#     content: |
+#       key=value

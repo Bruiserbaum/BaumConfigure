@@ -1,0 +1,50 @@
+#cloud-config
+# Node 1 — TuringPiRK1 (Turing RK1, 256GB NVMe, Swarm Manager)
+
+hostname: TuringPiRK1
+manage_etc_hosts: true
+
+users:
+  - name: ubuntu
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - REPLACE_WITH_SSH_PUBLIC_KEY
+    # Uncomment to allow password login
+    # passwd: "REPLACE_WITH_HASHED_PASSWORD"
+    # lock_passwd: false
+
+ssh_pwauth: false
+disable_root: true
+
+packages:
+  - curl
+  - vim
+  - htop
+  - git
+  - glusterfs-server
+  - unattended-upgrades
+  - apt-listchanges
+
+runcmd:
+  - systemctl enable --now ssh
+  - systemctl enable --now glusterd
+  - timedatectl set-timezone REPLACE_WITH_TIMEZONE
+  - dpkg-reconfigure -plow unattended-upgrades
+  # Load kernel modules required for Docker Swarm (IPVS)
+  - modprobe ip_vs
+  - modprobe ip_vs_rr
+  - modprobe ip_vs_wrr
+  - modprobe ip_vs_sh
+  - modprobe nf_conntrack
+  - echo -e "ip_vs\nip_vs_rr\nip_vs_wrr\nip_vs_sh\nnf_conntrack" > /etc/modules-load.d/ipvs.conf
+
+write_files:
+  - path: /etc/hosts
+    append: true
+    content: |
+      # Turing Pi cluster nodes
+      REPLACE_WITH_RK1_IP    TuringPiRK1
+      REPLACE_WITH_CM3_IP    TuringPICompute3
+      REPLACE_WITH_CM4_IP    TuringPICompute4

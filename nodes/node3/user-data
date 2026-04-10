@@ -1,0 +1,45 @@
+#cloud-config
+# Node 3 — TuringPICompute3 (Raspberry Pi CM4, 2TB SATA, Swarm Worker)
+
+hostname: TuringPICompute3
+manage_etc_hosts: true
+
+users:
+  - name: ubuntu
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - REPLACE_WITH_SSH_PUBLIC_KEY
+    # Uncomment to allow password login
+    # passwd: "REPLACE_WITH_HASHED_PASSWORD"
+    # lock_passwd: false
+
+ssh_pwauth: false
+disable_root: true
+
+packages:
+  - curl
+  - vim
+  - htop
+  - git
+  - glusterfs-server
+  - cifs-utils
+  - rsync
+  - unattended-upgrades
+  - apt-listchanges
+
+runcmd:
+  - systemctl enable --now ssh
+  - systemctl enable --now glusterd
+  - timedatectl set-timezone REPLACE_WITH_TIMEZONE
+  - dpkg-reconfigure -plow unattended-upgrades
+
+write_files:
+  - path: /etc/hosts
+    append: true
+    content: |
+      # Turing Pi cluster nodes
+      REPLACE_WITH_RK1_IP    TuringPiRK1
+      REPLACE_WITH_CM3_IP    TuringPICompute3
+      REPLACE_WITH_CM4_IP    TuringPICompute4
