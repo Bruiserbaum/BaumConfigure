@@ -1,0 +1,49 @@
+#define AppName      "BaumConfigure"
+#define AppVersion   "1.0.0"
+#define AppVersionFull "1.0.0"
+#define AppPublisher "Bruiserbaum"
+#define AppExeName   "BaumConfigure.exe"
+#define PublishDir   "..\BaumConfigureGUI\bin\Release\net8.0-windows\win-x64\publish"
+
+[Setup]
+AppId={{D4E5F6A7-B8C9-0DA1-B2C3-D4E5F6A7B8C9}
+AppName={#AppName}
+AppVersion={#AppVersion}
+AppPublisher={#AppPublisher}
+AppPublisherURL=https://github.com/Bruiserbaum/BaumConfigure
+AppSupportURL=https://github.com/Bruiserbaum/BaumConfigure
+AppUpdatesURL=https://github.com/Bruiserbaum/BaumConfigure/releases
+DefaultDirName={localappdata}\Programs\{#AppName}
+DefaultGroupName={#AppName}
+OutputDir=output
+OutputBaseFilename=BaumConfigure-Setup-{#AppVersionFull}
+Compression=lzma2/ultra64
+SolidCompression=yes
+WizardStyle=modern
+PrivilegesRequired=lowest
+CloseApplications=yes
+MinVersion=10.0.19041
+ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed=x64compatible
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
+
+[Files]
+Source: "{#PublishDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion restartreplace uninsrestartdelete
+Source: "{#PublishDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+
+[Icons]
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
+Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+
+[Run]
+Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall
+
+[UninstallDelete]
+Type: files; Name: "{app}\*.json"
+Type: dirifempty; Name: "{app}"
