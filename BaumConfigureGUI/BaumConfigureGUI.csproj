@@ -7,5 +7,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BaumConfigure</AssemblyName>
     <RootNamespace>BaumConfigureGUI</RootNamespace>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Resources\app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

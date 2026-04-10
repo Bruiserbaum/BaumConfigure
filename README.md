@@ -1,116 +1,124 @@
 # BaumConfigure
 
-Cloud-init configuration and flashing scripts for the Turing Pi 2 cluster. Produces pre-configured Ubuntu images for each node — hostname, user, SSH keys, packages, and startup commands all set before first boot.
+Windows GUI for building pre-configured Ubuntu OS images for ARM and x64 servers. Set hostname, user credentials, timezone, and software — then generate a ready-to-flash `.img` file with cloud-init baked in.
+
+---
+
+## Features
+
+- **Dark theme** matching the rest of the BaumLab suite
+- **Image builder** — injects cloud-init config directly into a base `.img` via `virt-customize` in WSL
+- **User setup** — hostname, username, password with live strength indicator and automatic sha-512 hashing
+- **Software options** — Docker (official install script), Kubernetes (kubeadm), Portainer CE
+- **Extra packages and first-boot commands** for custom configuration
+- **Auto-update** — checks GitHub on launch and offers one-click install with automatic restart
+- **Settings persistence** — all paths and config fields saved across sessions
 
 ---
 
 ## How It Works
 
-1. Edit the `nodes/<nodeN>/user-data` for each node (fill in SSH key, timezone, IPs)
-2. Run `build-seed.sh` to generate a cloud-init seed ISO per node
-3. Run `flash.sh` to flash the base image + attach the seed ISO via the Turing Pi 2 BMC
-4. Power on — cloud-init configures the node automatically on first boot
+```
+Base Ubuntu .img
+       │
+       ▼
+BaumConfigure (Windows GUI)
+       │  Generates cloud-init user-data / meta-data
+       │  Runs virt-customize in WSL to inject config
+       ▼
+Configured .img  ──►  Flash to node via BMC or balenaEtcher
+```
+
+1. Download a base Ubuntu ARM64 or x64 image (see links below)
+2. Open BaumConfigure and fill in your settings
+3. Click **Build Image** — the app calls WSL to produce a configured `.img`
+4. Flash the output image to your node
 
 ---
 
-## Cluster Layout
+## Requirements
 
-| Node | Hostname | Hardware | Role |
-|------|----------|----------|------|
-| 1 | TuringPiRK1 | Turing RK1, 256GB NVMe | Swarm Manager |
-| 2 | — | — | Empty |
-| 3 | TuringPICompute3 | CM4, 2TB SATA | Swarm Worker |
-| 4 | TuringPICompute4 | CM4, eMMC | Swarm Worker |
+### Windows
+- Windows 10 (build 19041+) or Windows 11
+- WSL with a Linux distro (Ubuntu recommended)
+
+### Inside WSL
+```bash
+sudo apt install libguestfs-tools whois
+```
+
+| Tool | Purpose |
+|------|---------|
+| `virt-customize` (libguestfs-tools) | Injects cloud-init config into the image |
+| `mkpasswd` (whois) | Hashes the password to sha-512 at build time |
 
 ---
 
-## Prerequisites
+## Installation
 
-### On your workstation (Linux/WSL)
+Download and run the latest installer — no admin rights required:
 
-```bash
-# cloud-init seed ISO builder
-sudo apt install cloud-image-utils
-
-# (optional) inject cloud-init directly into image
-sudo apt install libguestfs-tools
-
-# tpi CLI for flashing via BMC
-# https://docs.turingpi.com/docs/tpi-tool
-```
-
-### Base images
-
-Download to `images/` — not committed (too large for git):
-
-| Node | Image | Source |
-|------|-------|--------|
-| RK1 (Node 1) | `ubuntu-rk1-base.img` | [Turing Pi RK1 releases](https://github.com/turing-machines/armbian-build/releases) |
-| CM4 (Nodes 3 & 4) | `ubuntu-cm4-base.img` | [Ubuntu Raspberry Pi](https://ubuntu.com/download/raspberry-pi) |
+**[BaumConfigure-Setup-1.2.0.exe](https://github.com/Bruiserbaum/BaumConfigure/releases/latest)**
 
 ---
 
-## Setup
+## Base Images
 
-### 1. Fill in your node configs
+Download to any folder and point BaumConfigure at the file:
 
-Edit each `nodes/<nodeN>/user-data` and replace all `REPLACE_WITH_*` values:
-
-| Placeholder | Value |
-|-------------|-------|
-| `REPLACE_WITH_SSH_PUBLIC_KEY` | Your public key (`cat ~/.ssh/id_ed25519.pub`) |
-| `REPLACE_WITH_TIMEZONE` | e.g. `America/New_York` |
-| `REPLACE_WITH_RK1_IP` | Static IP of TuringPiRK1 |
-| `REPLACE_WITH_CM3_IP` | Static IP of TuringPICompute3 |
-| `REPLACE_WITH_CM4_IP` | Static IP of TuringPICompute4 |
-
-> **Password hashing** (if you want password login):
-> ```bash
-> mkpasswd -m sha-512   # Linux
-> ```
-
-### 2. Build seed ISOs
-
-```bash
-chmod +x build-seed.sh
-./build-seed.sh          # all nodes
-./build-seed.sh node1    # single node
-```
-
-Seed ISOs are written to `seeds/`.
-
-### 3. Flash a node
-
-```bash
-chmod +x flash.sh
-
-# Flash Node 1 (RK1) — uses seed ISO
-./flash.sh 1 rk1
-
-# Flash Node 3 (CM4) — bake cloud-init directly into image
-./flash.sh 3 cm4 --inject
-
-# Dry run to preview commands
-./flash.sh 4 cm4 --dry-run
-```
-
-The `--inject` mode uses `virt-copy-in` to write cloud-init config directly into the image file. The default seed ISO mode requires attaching the ISO via the BMC web UI before powering on.
-
-### 4. Monitor first boot
-
-```bash
-# Watch cloud-init progress over serial console
-tpi uart -n 1
-```
+| Target | Image | Source |
+|--------|-------|--------|
+| Turing RK1 (ARM64) | Ubuntu 24.04 for RK1 | [Turing Pi RK1 releases](https://github.com/turing-machines/armbian-build/releases) |
+| Raspberry Pi CM4 (ARM64) | Ubuntu 24.04 Server ARM64 | [Ubuntu Raspberry Pi](https://ubuntu.com/download/raspberry-pi) |
+| Generic x64 server | Ubuntu 24.04 Server x64 | [Ubuntu Server](https://ubuntu.com/download/server) |
 
 ---
 
-## Adding a New Node
+## Configuration Fields
 
-1. Create `nodes/<nodeN>/meta-data` and `nodes/<nodeN>/user-data` (copy from `templates/`)
-2. Fill in the hostname and your credentials
-3. Run `./build-seed.sh node<N>`
-4. Run `./flash.sh <N> <rk1|cm4>`
+| Field | Description |
+|-------|-------------|
+| **Base Image** | Path to the source `.img` file |
+| **Output Folder** | Where the configured image is written |
+| **WSL Distro** | WSL distro name (default: `Ubuntu`) |
+| **Hostname** | Node hostname set on first boot |
+| **Timezone** | e.g. `America/New_York`, `Europe/London` |
+| **Username** | Primary user account name |
+| **Password** | Plain-text input — hashed to sha-512 by WSL at build time, never stored as plaintext |
+| **Docker** | Installs Docker via the official install script, adds user to docker group |
+| **Kubernetes** | Installs kubeadm, kubelet, kubectl (v1.32) |
+| **Portainer CE** | Deploys Portainer CE container (requires Docker) |
+| **Extra Packages** | Additional apt packages, space or comma separated |
+| **First-Boot Commands** | Custom runcmd entries, one per line |
+
+---
+
+## Updates
+
+BaumConfigure checks for updates on launch. When a new version is available, an **Update available** badge appears in the title bar. Clicking it downloads the installer and relaunches the app automatically.
+
+---
+
+## Building from Source
+
+```bash
+git clone https://github.com/Bruiserbaum/BaumConfigure.git
+cd BaumConfigure/BaumConfigureGUI
+dotnet build
+dotnet run
+```
+
+To build a release installer:
+```bash
+cd installer
+build-installer.bat
+# Requires Inno Setup 6: https://jrsoftware.org/isinfo.php
+```
+
+To regenerate the icon:
+```powershell
+.\create-icon.ps1
+```
 
 ---
 
@@ -118,23 +126,24 @@ tpi uart -n 1
 
 ```
 BaumConfigure/
-├── flash.sh              # Flash base image + attach seed to a node
-├── build-seed.sh         # Build cloud-init seed ISOs from node configs
-├── nodes/
-│   ├── node1/            # TuringPiRK1 (RK1, NVMe, Swarm Manager)
-│   │   ├── meta-data
-│   │   └── user-data
-│   ├── node3/            # TuringPICompute3 (CM4, SATA, Worker)
-│   │   ├── meta-data
-│   │   └── user-data
-│   └── node4/            # TuringPICompute4 (CM4, eMMC, Worker)
-│       ├── meta-data
-│       └── user-data
-├── templates/
-│   ├── user-data.template
-│   └── meta-data.template
-├── images/               # Base .img files (not committed — too large)
-└── seeds/                # Generated seed ISOs (not committed)
+├── BaumConfigureGUI/
+│   ├── AppTheme.cs               # Shared colour palette and fonts
+│   ├── MainForm.cs               # Main window
+│   ├── Models/
+│   │   ├── NodeConfig.cs         # Image configuration model
+│   │   └── AppSettings.cs        # Persisted settings model
+│   ├── Services/
+│   │   ├── CloudInitService.cs   # Generates user-data / meta-data
+│   │   ├── ImageBuilderService.cs# virt-customize build pipeline
+│   │   ├── UpdateService.cs      # GitHub update check + installer
+│   │   └── WslService.cs         # Runs commands in WSL
+│   └── Resources/
+│       └── app.ico               # Application icon (all sizes)
+├── installer/
+│   ├── setup.iss                 # Inno Setup script
+│   └── build-installer.bat       # Build script
+├── create-icon.ps1               # Icon generation script
+└── nodes/                        # cloud-init templates (CLI workflow)
 ```
 
 ---
@@ -143,8 +152,9 @@ BaumConfigure/
 
 | Project | Description |
 |---------|-------------|
-| **[BaumConfigure](https://github.com/Bruiserbaum/BaumConfigure)** | *(this repo)* OS image configuration for Turing Pi 2 nodes |
-| **[BaumDocker](https://github.com/Bruiserbaum/BaumDocker)** | Docker Compose stacks and Swarm setup for the cluster |
+| **[BaumConfigure](https://github.com/Bruiserbaum/BaumConfigure)** | *(this repo)* OS image builder for ARM and x64 servers |
+| **[BaumDocker](https://github.com/Bruiserbaum/BaumDocker)** | Docker Compose stacks and Swarm setup |
+| **[BaumLaunch](https://github.com/Bruiserbaum/BaumLaunch)** | WinGet GUI with system tray updater |
 
 ---
 
