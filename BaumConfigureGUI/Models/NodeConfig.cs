@@ -13,6 +13,12 @@ public class NodeConfig
     public string ExtraPackages   { get; set; } = "";
     public string ExtraRuncmds    { get; set; } = "";
 
+    // ── Tweaks ────────────────────────────────────────────────────────────────
+    public bool   AutoPatch            { get; set; } = true;
+    public bool   LogRotation          { get; set; } = true;
+    public bool   WeeklyReboot         { get; set; } = false;
+    public string DockerRestartPolicy  { get; set; } = "unless-stopped"; // no, unless-stopped, always, on-failure
+
     // ── Network ───────────────────────────────────────────────────────────────
     public bool   ConfigureNetwork { get; set; } = false;
     public string NetworkType      { get; set; } = "ethernet"; // "ethernet" or "wifi"

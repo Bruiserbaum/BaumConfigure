@@ -6,7 +6,10 @@ namespace BaumConfigureGUI;
 
 public class MainForm : Form
 {
-    // ── Config controls ───────────────────────────────────────────────────────
+    // ── Setup tab controls ────────────────────────────────────────────────────
+    private DarkTextBox   _baseImageBox    = null!;
+    private DarkTextBox   _outputDirBox    = null!;
+    private DarkTextBox   _wslDistroBox    = null!;
     private DarkTextBox   _hostnameBox     = null!;
     private DarkTextBox   _usernameBox     = null!;
     private DarkTextBox   _passwordBox     = null!;
@@ -17,32 +20,30 @@ public class MainForm : Form
     private DarkCheckBox  _k8sCheck        = null!;
     private DarkCheckBox  _portainerCheck  = null!;
     private DarkTextBox   _extraPkgBox     = null!;
+
+    // ── Advanced tab controls ─────────────────────────────────────────────────
+    private DarkCheckBox  _configNetCheck  = null!;
+    private RadioButton   _ethernetRadio   = null!;
+    private RadioButton   _wifiRadio       = null!;
+    private DarkCheckBox  _dhcpCheck       = null!;
+    private DarkTextBox   _staticIpBox     = null!;
+    private DarkTextBox   _gatewayBox      = null!;
+    private DarkTextBox   _dnsBox          = null!;
+    private DarkTextBox   _wifiSsidBox     = null!;
+    private DarkTextBox   _wifiPassBox     = null!;
+    private DarkCheckBox  _autoPatchCheck  = null!;
+    private DarkCheckBox  _logRotCheck     = null!;
+    private DarkCheckBox  _weeklyRebootCheck = null!;
+    private ComboBox      _dockerRestartCombo = null!;
     private DarkTextBox   _extraCmdBox     = null!;
-    private DarkCheckBox  _weeklyUpdateCheck = null!;
 
-    // ── Network controls ──────────────────────────────────────────────────────
-    private DarkCheckBox  _configNetCheck = null!;
-    private RadioButton   _ethernetRadio  = null!;
-    private RadioButton   _wifiRadio      = null!;
-    private DarkCheckBox  _dhcpCheck      = null!;
-    private DarkTextBox   _staticIpBox    = null!;
-    private DarkTextBox   _gatewayBox     = null!;
-    private DarkTextBox   _dnsBox         = null!;
-    private DarkTextBox   _wifiSsidBox    = null!;
-    private DarkTextBox   _wifiPassBox    = null!;
-
-    // ── Path controls ─────────────────────────────────────────────────────────
-    private DarkTextBox _baseImageBox = null!;
-    private DarkTextBox _outputDirBox = null!;
-    private DarkTextBox _wslDistroBox = null!;
-
-    // ── Output / status ───────────────────────────────────────────────────────
-    private RichTextBox _outputBox       = null!;
-    private Button      _buildBtn        = null!;
-    private Label       _statusLabel     = null!;
-    private ProgressBar _progressBar     = null!;
-    private Label       _updateBadge     = null!;
-    private ReleaseInfo? _pendingUpdate  = null;
+    // ── Status / output ───────────────────────────────────────────────────────
+    private RichTextBox   _outputBox       = null!;
+    private Button        _buildBtn        = null!;
+    private Label         _statusLabel     = null!;
+    private ProgressBar   _progressBar     = null!;
+    private Label         _updateBadge     = null!;
+    private ReleaseInfo?  _pendingUpdate   = null;
 
     private CancellationTokenSource? _buildCts;
     private DateTime _lastUpdateCheck = DateTime.MinValue;
@@ -63,8 +64,8 @@ public class MainForm : Form
     private void BuildUi()
     {
         Text          = "BaumConfigure";
-        Size          = new Size(1080, 1060);
-        MinimumSize   = new Size(880, 980);
+        Size          = new Size(1080, 900);
+        MinimumSize   = new Size(880, 820);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor     = AppTheme.BgMain;
         ForeColor     = AppTheme.TextPrimary;
@@ -75,19 +76,16 @@ public class MainForm : Form
             var iconPath = Path.Combine(AppContext.BaseDirectory, "app.ico");
             if (File.Exists(iconPath)) Icon = new Icon(iconPath);
         }
-        catch { /* icon optional */ }
+        catch { }
 
         var root = new TableLayoutPanel
         {
-            Dock        = DockStyle.Fill,
-            RowCount    = 3,
-            ColumnCount = 1,
-            Padding     = new Padding(0),
-            BackColor   = AppTheme.BgMain,
+            Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1,
+            Padding = new Padding(0), BackColor = AppTheme.BgMain,
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));   // title bar
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // body
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));   // status bar
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
 
         root.Controls.Add(BuildTitleBar(),  0, 0);
         root.Controls.Add(BuildBody(),      0, 1);
@@ -96,105 +94,162 @@ public class MainForm : Form
         Controls.Add(root);
     }
 
+    // ── Title bar ─────────────────────────────────────────────────────────────
     private Panel BuildTitleBar()
     {
         var panel = new Panel
         {
-            Dock      = DockStyle.Fill,
-            BackColor = AppTheme.BgDeep,
-            Padding   = new Padding(16, 0, 16, 0),
+            Dock = DockStyle.Fill, BackColor = AppTheme.BgDeep,
+            Padding = new Padding(16, 0, 16, 0),
         };
 
-        var title = new Label
+        panel.Controls.Add(new Label
         {
-            Text      = "BaumConfigure",
-            Dock      = DockStyle.Left,
-            AutoSize  = false,
-            Width     = 240,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font      = AppTheme.FontTitle,
-            ForeColor = AppTheme.TextPrimary,
-            BackColor = Color.Transparent,
-        };
-
-        var sub = new Label
+            Text = "BaumConfigure", Dock = DockStyle.Left, Width = 220,
+            TextAlign = ContentAlignment.MiddleLeft, Font = AppTheme.FontTitle,
+            ForeColor = AppTheme.TextPrimary, BackColor = Color.Transparent,
+        });
+        panel.Controls.Add(new Label
         {
-            Text      = "OS Image Builder",
-            Dock      = DockStyle.Left,
-            AutoSize  = false,
-            Width     = 160,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font      = AppTheme.FontSmall,
-            ForeColor = AppTheme.TextMuted,
-            BackColor = Color.Transparent,
-        };
+            Text = "OS Image Builder", Dock = DockStyle.Left, Width = 150,
+            TextAlign = ContentAlignment.MiddleLeft, Font = AppTheme.FontSmall,
+            ForeColor = AppTheme.TextMuted, BackColor = Color.Transparent,
+        });
 
         var ver = new Label
         {
-            Text      = $"v{UpdateService.CurrentVersion}",
-            Dock      = DockStyle.Right,
-            AutoSize  = false,
-            Width     = 60,
-            TextAlign = ContentAlignment.MiddleRight,
-            Font      = AppTheme.FontSmall,
-            ForeColor = AppTheme.TextMuted,
-            BackColor = Color.Transparent,
+            Text = $"v{UpdateService.CurrentVersion}", Dock = DockStyle.Right, Width = 60,
+            TextAlign = ContentAlignment.MiddleRight, Font = AppTheme.FontSmall,
+            ForeColor = AppTheme.TextMuted, BackColor = Color.Transparent,
         };
 
         _updateBadge = new Label
         {
-            Text      = "Update available",
-            Dock      = DockStyle.Right,
-            AutoSize  = false,
-            Width     = 110,
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font      = AppTheme.FontSmall,
-            ForeColor = AppTheme.BgMain,
-            BackColor = AppTheme.Warning,
-            Cursor    = Cursors.Hand,
-            Visible   = false,
+            Text = "Update available", Dock = DockStyle.Right, Width = 110,
+            TextAlign = ContentAlignment.MiddleCenter, Font = AppTheme.FontSmall,
+            ForeColor = AppTheme.BgMain, BackColor = AppTheme.Warning,
+            Cursor = Cursors.Hand, Visible = false,
         };
         _updateBadge.Click += OnUpdateBadgeClicked;
 
-        panel.Controls.AddRange([title, sub, ver, _updateBadge]);
+        var checkUpdBtn = new Button
+        {
+            Text = "Check Updates", Dock = DockStyle.Right, Width = 108,
+            FlatStyle = FlatStyle.Flat, BackColor = AppTheme.BgCard,
+            ForeColor = AppTheme.TextSecondary, Font = AppTheme.FontSmall,
+            Cursor = Cursors.Hand,
+        };
+        checkUpdBtn.FlatAppearance.BorderColor = AppTheme.Border;
+        checkUpdBtn.FlatAppearance.BorderSize  = 1;
+        checkUpdBtn.Click += OnCheckUpdateClicked;
+
+        panel.Controls.AddRange([ver, _updateBadge, checkUpdBtn]);
         return panel;
     }
 
+    // ── Body ──────────────────────────────────────────────────────────────────
     private Control BuildBody()
     {
         var split = new SplitContainer
         {
-            Dock          = DockStyle.Fill,
-            Orientation   = Orientation.Vertical,
-            SplitterWidth = 4,
-            BackColor     = AppTheme.Border,
+            Dock = DockStyle.Fill, Orientation = Orientation.Vertical,
+            SplitterWidth = 4, BackColor = AppTheme.Border,
         };
-        // Panel1/2MinSize and SplitterDistance all call set_SplitterDistance
-        // internally, which requires the control to have a valid width.
-        // Defer until the form is fully loaded and sized.
+        split.Panel1.BackColor = AppTheme.BgMain;
+        split.Panel2.BackColor = AppTheme.BgMain;
+
         Load += (_, _) =>
         {
             split.Panel1MinSize = 380;
             split.Panel2MinSize = 320;
             try { split.SplitterDistance = 440; } catch { }
         };
-        split.Panel1.BackColor = AppTheme.BgMain;
-        split.Panel2.BackColor = AppTheme.BgMain;
 
         split.Panel1.Controls.Add(BuildConfigPanel());
         split.Panel2.Controls.Add(BuildOutputPanel());
         return split;
     }
 
-    // ── Config panel ──────────────────────────────────────────────────────────
+    // ── Config panel (tabbed) ─────────────────────────────────────────────────
     private Control BuildConfigPanel()
+    {
+        var outer = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.BgMain };
+
+        // Build button pinned at bottom
+        var buildArea = new Panel
+        {
+            Dock = DockStyle.Bottom, Height = 58,
+            BackColor = AppTheme.BgMain, Padding = new Padding(18, 8, 18, 8),
+        };
+        buildArea.Controls.Add(new Panel
+        {
+            Dock = DockStyle.Top, Height = 1, BackColor = AppTheme.Border,
+        });
+        _buildBtn = new Button
+        {
+            Text = "Build Image", Dock = DockStyle.Fill,
+            FlatStyle = FlatStyle.Flat, BackColor = AppTheme.Accent,
+            ForeColor = Color.White, Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+            Cursor = Cursors.Hand,
+        };
+        _buildBtn.FlatAppearance.BorderSize = 0;
+        _buildBtn.FlatAppearance.MouseOverBackColor = AppTheme.AccentHover;
+        _buildBtn.Click += OnBuildClicked;
+        buildArea.Controls.Add(_buildBtn);
+
+        // Tab control
+        var tabs = new TabControl
+        {
+            Dock = DockStyle.Fill, DrawMode = TabDrawMode.OwnerDrawFixed,
+            SizeMode = TabSizeMode.Fixed, ItemSize = new Size(120, 28),
+            Padding = new Point(0, 0), BackColor = AppTheme.BgMain,
+        };
+        tabs.DrawItem += OnDrawTab;
+
+        var setupPage = new TabPage("Setup") { BackColor = AppTheme.BgMain, Padding = new Padding(0) };
+        setupPage.Controls.Add(BuildSetupTab());
+
+        var advPage = new TabPage("Advanced") { BackColor = AppTheme.BgMain, Padding = new Padding(0) };
+        advPage.Controls.Add(BuildAdvancedTab());
+
+        tabs.TabPages.Add(setupPage);
+        tabs.TabPages.Add(advPage);
+
+        outer.Controls.Add(tabs);
+        outer.Controls.Add(buildArea);
+        return outer;
+    }
+
+    private void OnDrawTab(object? sender, DrawItemEventArgs e)
+    {
+        var tabs    = (TabControl)sender!;
+        bool sel    = e.Index == tabs.SelectedIndex;
+        var bgColor = sel ? AppTheme.BgCard : AppTheme.BgDeep;
+        var fgColor = sel ? AppTheme.TextPrimary : AppTheme.TextMuted;
+
+        using var bg = new SolidBrush(bgColor);
+        e.Graphics.FillRectangle(bg, e.Bounds);
+
+        if (sel)
+        {
+            using var accentBrush = new SolidBrush(AppTheme.Accent);
+            e.Graphics.FillRectangle(accentBrush,
+                new Rectangle(e.Bounds.X, e.Bounds.Bottom - 2, e.Bounds.Width, 2));
+        }
+
+        using var fg  = new SolidBrush(fgColor);
+        var fmt = new StringFormat
+            { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        e.Graphics.DrawString(tabs.TabPages[e.Index].Text, AppTheme.FontHeader, fg, e.Bounds, fmt);
+    }
+
+    // ── Setup tab ─────────────────────────────────────────────────────────────
+    private Control BuildSetupTab()
     {
         var scroll = new Panel
         {
-            Dock       = DockStyle.Fill,
-            AutoScroll = true,
-            BackColor  = AppTheme.BgMain,
-            Padding    = new Padding(18, 14, 14, 14),
+            Dock = DockStyle.Fill, AutoScroll = true,
+            BackColor = AppTheme.BgMain, Padding = new Padding(18, 14, 14, 14),
         };
 
         const int LW = 128;
@@ -205,21 +260,15 @@ public class MainForm : Form
         void Section(string title)
         {
             y += 4;
-            var lbl = new Label
+            scroll.Controls.Add(new Label
             {
-                Text      = title,
-                Location  = new Point(0, y),
-                AutoSize  = true,
-                Font      = AppTheme.FontHeader,
-                ForeColor = AppTheme.Accent,
-                BackColor = Color.Transparent,
-            };
-            scroll.Controls.Add(lbl);
+                Text = title, Location = new Point(0, y), AutoSize = true,
+                Font = AppTheme.FontHeader, ForeColor = AppTheme.Accent, BackColor = Color.Transparent,
+            });
             y += 20;
             scroll.Controls.Add(new Panel
             {
-                Location  = new Point(0, y),
-                Size      = new Size(FX + FW + 40, 1),
+                Location = new Point(0, y), Size = new Size(FX + FW + 40, 1),
                 BackColor = AppTheme.Border,
             });
             y += 8;
@@ -229,20 +278,11 @@ public class MainForm : Form
         {
             scroll.Controls.Add(new Label
             {
-                Text      = label,
-                Location  = new Point(0, y + 4),
-                Width     = LW,
-                TextAlign = ContentAlignment.MiddleRight,
-                Font      = AppTheme.FontSmall,
-                ForeColor = AppTheme.TextSecondary,
-                BackColor = Color.Transparent,
+                Text = label, Location = new Point(0, y + 4), Width = LW,
+                TextAlign = ContentAlignment.MiddleRight, Font = AppTheme.FontSmall,
+                ForeColor = AppTheme.TextSecondary, BackColor = Color.Transparent,
             });
-            var tb = new DarkTextBox
-            {
-                Location  = new Point(FX, y),
-                Width     = FW,
-                Text      = val,
-            };
+            var tb = new DarkTextBox { Location = new Point(FX, y), Width = FW, Text = val };
             if (password) tb.UseSystemPasswordChar = true;
             if (placeholder != null) tb.PlaceholderText = placeholder;
             scroll.Controls.Add(tb);
@@ -253,12 +293,7 @@ public class MainForm : Form
         DarkCheckBox Check(string label, bool val, int xOff = 0)
         {
             var cb = new DarkCheckBox
-            {
-                Text     = label,
-                Location = new Point(FX + xOff, y),
-                AutoSize = true,
-                Checked  = val,
-            };
+                { Text = label, Location = new Point(FX + xOff, y), AutoSize = true, Checked = val };
             scroll.Controls.Add(cb);
             return cb;
         }
@@ -273,11 +308,18 @@ public class MainForm : Form
         scroll.Controls.AddRange([_baseImageBox, browseImg]);
         y += 30;
 
-        var rockchipBtn = AccentBtn("Get Rockchip Image", FX, y, FW, 24);
+        // Image source buttons
+        var rockchipBtn = AccentBtn("Get Rockchip Image", FX, y, FW / 2 - 2, 24);
         rockchipBtn.FlatAppearance.BorderColor = AppTheme.Accent;
         rockchipBtn.FlatAppearance.BorderSize  = 1;
         rockchipBtn.Click += OpenRockchipBrowser;
-        scroll.Controls.Add(rockchipBtn);
+
+        var rpiBtn = AccentBtn("Get Raspberry Pi Image", FX + FW / 2 + 2, y, FW / 2 - 2, 24);
+        rpiBtn.FlatAppearance.BorderColor = AppTheme.Accent;
+        rpiBtn.FlatAppearance.BorderSize  = 1;
+        rpiBtn.Click += OpenRaspberryPiBrowser;
+
+        scroll.Controls.AddRange([rockchipBtn, rpiBtn]);
         y += 30;
 
         scroll.Controls.Add(FieldLabel("Output Folder:", 0, y, LW));
@@ -292,27 +334,14 @@ public class MainForm : Form
         scroll.Controls.Add(_wslDistroBox);
         y += 34;
 
-        var checkUpdateBtn = AccentBtn("Check for Updates", FX, y, 150, 24);
-        checkUpdateBtn.Click += OnCheckUpdateClicked;
-        _weeklyUpdateCheck = new DarkCheckBox
-        {
-            Text     = "Weekly only",
-            Location = new Point(FX + 158, y + 2),
-            AutoSize = true,
-        };
-        scroll.Controls.AddRange([checkUpdateBtn, _weeklyUpdateCheck]);
-        y += 32;
-
         // ── System ────────────────────────────────────────────────────────────
         Section("System");
-
         _hostnameBox = Field("Hostname:", "ubuntu-server");
         _timezoneBox = Field("Timezone:", "America/New_York", placeholder: "e.g. America/Chicago");
         y += 2;
 
         // ── User Account ──────────────────────────────────────────────────────
         Section("User Account");
-
         _usernameBox     = Field("Username:", "ubuntu");
         _passwordBox     = Field("Password:", "", password: true);
         _passwordBox.TextChanged     += OnPasswordChanged;
@@ -321,67 +350,20 @@ public class MainForm : Form
 
         _passwordStrLbl = new Label
         {
-            Location  = new Point(FX, y),
-            AutoSize  = true,
-            Font      = AppTheme.FontSmall,
-            ForeColor = AppTheme.TextMuted,
-            BackColor = Color.Transparent,
-            Text      = "Password hashed automatically at build time",
+            Location = new Point(FX, y), AutoSize = true, Font = AppTheme.FontSmall,
+            ForeColor = AppTheme.TextMuted, BackColor = Color.Transparent,
+            Text = "Password hashed automatically at build time",
         };
         scroll.Controls.Add(_passwordStrLbl);
         y += 22;
-
-        // ── Network ───────────────────────────────────────────────────────────
-        y += 4;
-        Section("Network");
-
-        // Row 1: enable toggle + interface type
-        _configNetCheck = new DarkCheckBox { Text = "Configure Network", Location = new Point(FX, y), AutoSize = true };
-        _ethernetRadio  = ThemedRadio("Ethernet", FX + 164, y + 2);
-        _wifiRadio      = ThemedRadio("WiFi",     FX + 244, y + 2);
-        _ethernetRadio.Checked = true;
-        _configNetCheck.CheckedChanged += (_, _) => UpdateNetworkFields();
-        _ethernetRadio.CheckedChanged  += (_, _) => UpdateNetworkFields();
-        scroll.Controls.AddRange([_configNetCheck, _ethernetRadio, _wifiRadio]);
-        y += 28;
-
-        // Row 2: DHCP toggle + static IP
-        _dhcpCheck  = new DarkCheckBox { Text = "DHCP", Location = new Point(FX, y + 3), AutoSize = true, Checked = true };
-        _staticIpBox = new DarkTextBox { Location = new Point(FX + 68, y), Width = FW - 68, PlaceholderText = "e.g. 192.168.1.10/24" };
-        scroll.Controls.Add(FieldLabel("IP / CIDR:", 0, y, LW));
-        _dhcpCheck.CheckedChanged += (_, _) => UpdateNetworkFields();
-        scroll.Controls.AddRange([_dhcpCheck, _staticIpBox]);
-        y += 28;
-
-        // Row 3: Gateway
-        scroll.Controls.Add(FieldLabel("Gateway:", 0, y, LW));
-        _gatewayBox = new DarkTextBox { Location = new Point(FX, y), Width = FW, PlaceholderText = "e.g. 192.168.1.1" };
-        scroll.Controls.Add(_gatewayBox);
-        y += 28;
-
-        // Row 4: DNS
-        scroll.Controls.Add(FieldLabel("DNS Servers:", 0, y, LW));
-        _dnsBox = new DarkTextBox { Location = new Point(FX, y), Width = FW, Text = "8.8.8.8,8.8.4.4" };
-        scroll.Controls.Add(_dnsBox);
-        y += 28;
-
-        // Row 5: WiFi SSID + Password side-by-side
-        scroll.Controls.Add(FieldLabel("WiFi SSID:", 0, y, LW));
-        _wifiSsidBox = new DarkTextBox { Location = new Point(FX, y), Width = 130, PlaceholderText = "Network name" };
-        var wifiPwdLbl = new Label { Text = "Pwd:", Location = new Point(FX + 136, y + 4), AutoSize = true, Font = AppTheme.FontSmall, ForeColor = AppTheme.TextSecondary, BackColor = Color.Transparent };
-        _wifiPassBox = new DarkTextBox { Location = new Point(FX + 166, y), Width = FW - 166, UseSystemPasswordChar = true };
-        scroll.Controls.AddRange([_wifiSsidBox, wifiPwdLbl, _wifiPassBox]);
-        y += 30;
-
-        UpdateNetworkFields();
 
         // ── Software ──────────────────────────────────────────────────────────
         y += 4;
         Section("Software");
 
-        var presetDockerBtn = AccentBtn("Docker Host", FX, y, 90, 22);
-        var presetK8sBtn    = AccentBtn("K8s Node",    FX + 96,  y, 80, 22);
-        var presetFullBtn   = AccentBtn("Full Stack",  FX + 182, y, 80, 22);
+        var presetDockerBtn = AccentBtn("Docker Host", FX,           y, 90, 22);
+        var presetK8sBtn    = AccentBtn("K8s Node",    FX + 96,      y, 80, 22);
+        var presetFullBtn   = AccentBtn("Full Stack",  FX + 182,     y, 80, 22);
         presetDockerBtn.Click += (_, _) => { _dockerCheck.Checked = true; _k8sCheck.Checked = false; _portainerCheck.Checked = true; };
         presetK8sBtn.Click    += (_, _) => { _dockerCheck.Checked = true; _k8sCheck.Checked = true;  _portainerCheck.Checked = false; };
         presetFullBtn.Click   += (_, _) => { _dockerCheck.Checked = true; _k8sCheck.Checked = true;  _portainerCheck.Checked = true; };
@@ -403,43 +385,131 @@ public class MainForm : Form
         };
 
         _extraPkgBox = Field("Extra Packages:", "", placeholder: "space or comma separated");
-        y += 2;
 
-        // ── Extra Commands ────────────────────────────────────────────────────
+        scroll.AutoScrollMinSize = new Size(0, y);
+        return scroll;
+    }
+
+    // ── Advanced tab ──────────────────────────────────────────────────────────
+    private Control BuildAdvancedTab()
+    {
+        var scroll = new Panel
+        {
+            Dock = DockStyle.Fill, AutoScroll = true,
+            BackColor = AppTheme.BgMain, Padding = new Padding(18, 14, 14, 14),
+        };
+
+        const int LW = 128;
+        const int FX = 136;
+        const int FW = 264;
+        int y = 6;
+
+        void Section(string title)
+        {
+            y += 4;
+            scroll.Controls.Add(new Label
+            {
+                Text = title, Location = new Point(0, y), AutoSize = true,
+                Font = AppTheme.FontHeader, ForeColor = AppTheme.Accent, BackColor = Color.Transparent,
+            });
+            y += 20;
+            scroll.Controls.Add(new Panel
+            {
+                Location = new Point(0, y), Size = new Size(FX + FW + 40, 1),
+                BackColor = AppTheme.Border,
+            });
+            y += 8;
+        }
+
+        // ── Network ───────────────────────────────────────────────────────────
+        Section("Network");
+
+        _configNetCheck = new DarkCheckBox { Text = "Configure Network", Location = new Point(FX, y), AutoSize = true };
+        _ethernetRadio  = ThemedRadio("Ethernet", FX + 164, y + 2);
+        _wifiRadio      = ThemedRadio("WiFi",     FX + 244, y + 2);
+        _ethernetRadio.Checked = true;
+        _configNetCheck.CheckedChanged += (_, _) => UpdateNetworkFields();
+        _ethernetRadio.CheckedChanged  += (_, _) => UpdateNetworkFields();
+        scroll.Controls.AddRange([_configNetCheck, _ethernetRadio, _wifiRadio]);
+        y += 28;
+
+        _dhcpCheck   = new DarkCheckBox { Text = "DHCP", Location = new Point(FX, y + 3), AutoSize = true, Checked = true };
+        _staticIpBox = new DarkTextBox  { Location = new Point(FX + 68, y), Width = FW - 68, PlaceholderText = "e.g. 192.168.1.10/24" };
+        scroll.Controls.Add(FieldLabel("IP / CIDR:", 0, y, LW));
+        _dhcpCheck.CheckedChanged += (_, _) => UpdateNetworkFields();
+        scroll.Controls.AddRange([_dhcpCheck, _staticIpBox]);
+        y += 28;
+
+        scroll.Controls.Add(FieldLabel("Gateway:", 0, y, LW));
+        _gatewayBox = new DarkTextBox { Location = new Point(FX, y), Width = FW, PlaceholderText = "e.g. 192.168.1.1" };
+        scroll.Controls.Add(_gatewayBox);
+        y += 28;
+
+        scroll.Controls.Add(FieldLabel("DNS Servers:", 0, y, LW));
+        _dnsBox = new DarkTextBox { Location = new Point(FX, y), Width = FW, Text = "8.8.8.8,8.8.4.4" };
+        scroll.Controls.Add(_dnsBox);
+        y += 28;
+
+        scroll.Controls.Add(FieldLabel("WiFi SSID:", 0, y, LW));
+        _wifiSsidBox = new DarkTextBox { Location = new Point(FX, y), Width = 130, PlaceholderText = "Network name" };
+        var wifiPwdLbl = new Label
+        {
+            Text = "Pwd:", Location = new Point(FX + 136, y + 4), AutoSize = true,
+            Font = AppTheme.FontSmall, ForeColor = AppTheme.TextSecondary, BackColor = Color.Transparent,
+        };
+        _wifiPassBox = new DarkTextBox { Location = new Point(FX + 166, y), Width = FW - 166, UseSystemPasswordChar = true };
+        scroll.Controls.AddRange([_wifiSsidBox, wifiPwdLbl, _wifiPassBox]);
+        y += 30;
+
+        UpdateNetworkFields();
+
+        // ── Tweaks ────────────────────────────────────────────────────────────
+        y += 4;
+        Section("Tweaks");
+
+        // Row 1: auto-patch + log rotation
+        _autoPatchCheck = new DarkCheckBox { Text = "Auto-patch (unattended-upgrades)", Location = new Point(FX, y), AutoSize = true, Checked = true };
+        scroll.Controls.Add(_autoPatchCheck);
+        y += 26;
+
+        _logRotCheck = new DarkCheckBox { Text = "Log rotation (journalctl vacuum + logrotate weekly)", Location = new Point(FX, y), AutoSize = true, Checked = true };
+        scroll.Controls.Add(_logRotCheck);
+        y += 26;
+
+        _weeklyRebootCheck = new DarkCheckBox { Text = "Weekly reboot (Sunday 2 am via cron)", Location = new Point(FX, y), AutoSize = true, Checked = false };
+        scroll.Controls.Add(_weeklyRebootCheck);
+        y += 28;
+
+        // Docker restart policy
+        scroll.Controls.Add(FieldLabel("Docker Restart:", 0, y, LW));
+        _dockerRestartCombo = new ComboBox
+        {
+            Location      = new Point(FX, y),
+            Width         = 160,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor     = AppTheme.BgInput,
+            ForeColor     = AppTheme.TextPrimary,
+            FlatStyle     = FlatStyle.Flat,
+            Font          = AppTheme.FontBody,
+        };
+        _dockerRestartCombo.Items.AddRange(["no", "unless-stopped", "always", "on-failure"]);
+        _dockerRestartCombo.SelectedItem = "unless-stopped";
+        scroll.Controls.Add(_dockerRestartCombo);
+        y += 32;
+
+        // ── First-Boot Commands ───────────────────────────────────────────────
+        y += 4;
         Section("First-Boot Commands");
 
         scroll.Controls.Add(FieldLabel("Commands:", 0, y, LW));
         _extraCmdBox = new DarkTextBox
         {
-            Location    = new Point(FX, y),
-            Width       = FW,
-            Height      = 68,
-            Multiline   = true,
-            ScrollBars  = ScrollBars.Vertical,
+            Location = new Point(FX, y), Width = FW, Height = 80,
+            Multiline = true, ScrollBars = ScrollBars.Vertical,
             PlaceholderText = "One command per line",
         };
         scroll.Controls.Add(_extraCmdBox);
-        y += 76;
-
-        // ── Build button ──────────────────────────────────────────────────────
-        y += 12;
-        _buildBtn = new Button
-        {
-            Text      = "Build Image",
-            Location  = new Point(FX, y),
-            Width     = FW,
-            Height    = 40,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = AppTheme.Accent,
-            ForeColor = Color.White,
-            Font      = new Font("Segoe UI", 10f, FontStyle.Bold),
-            Cursor    = Cursors.Hand,
-        };
-        _buildBtn.FlatAppearance.BorderSize  = 0;
-        _buildBtn.FlatAppearance.MouseOverBackColor = AppTheme.AccentHover;
-        _buildBtn.Click += OnBuildClicked;
-        scroll.Controls.Add(_buildBtn);
-        y += 52;
+        y += 88;
 
         scroll.AutoScrollMinSize = new Size(0, y);
         return scroll;
@@ -450,64 +520,41 @@ public class MainForm : Form
     {
         var panel = new TableLayoutPanel
         {
-            Dock        = DockStyle.Fill,
-            RowCount    = 3,
-            ColumnCount = 1,
-            BackColor   = AppTheme.BgMain,
-            Padding     = new Padding(6, 8, 10, 10),
+            Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1,
+            BackColor = AppTheme.BgMain, Padding = new Padding(6, 8, 10, 10),
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));  // header
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // console
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));  // progress
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
 
-        // Header
         var header = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.BgMain };
         var outLbl = new Label
         {
-            Text      = "Build Output",
-            Dock      = DockStyle.Left,
-            Width     = 120,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font      = AppTheme.FontHeader,
-            ForeColor = AppTheme.TextPrimary,
-            BackColor = Color.Transparent,
+            Text = "Build Output", Dock = DockStyle.Left, Width = 120,
+            TextAlign = ContentAlignment.MiddleLeft, Font = AppTheme.FontHeader,
+            ForeColor = AppTheme.TextPrimary, BackColor = Color.Transparent,
         };
         var clearBtn = new Button
         {
-            Text      = "Clear",
-            Dock      = DockStyle.Right,
-            Width     = 56,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = AppTheme.BgCard,
-            ForeColor = AppTheme.TextSecondary,
-            Font      = AppTheme.FontSmall,
+            Text = "Clear", Dock = DockStyle.Right, Width = 56, FlatStyle = FlatStyle.Flat,
+            BackColor = AppTheme.BgCard, ForeColor = AppTheme.TextSecondary, Font = AppTheme.FontSmall,
         };
         clearBtn.FlatAppearance.BorderColor = AppTheme.Border;
         clearBtn.Click += (_, _) => _outputBox.Clear();
         header.Controls.AddRange([outLbl, clearBtn]);
 
-        // Console
         _outputBox = new RichTextBox
         {
-            Dock       = DockStyle.Fill,
-            ReadOnly   = true,
-            BackColor  = AppTheme.BgDeep,
-            ForeColor  = Color.FromArgb(180, 220, 130),
-            Font       = AppTheme.FontMono,
-            WordWrap   = false,
-            ScrollBars = RichTextBoxScrollBars.Both,
+            Dock = DockStyle.Fill, ReadOnly = true, BackColor = AppTheme.BgDeep,
+            ForeColor = Color.FromArgb(180, 220, 130), Font = AppTheme.FontMono,
+            WordWrap = false, ScrollBars = RichTextBoxScrollBars.Both,
             BorderStyle = BorderStyle.None,
         };
 
-        // Progress bar
         _progressBar = new ProgressBar
         {
-            Dock    = DockStyle.Fill,
-            Minimum = 0,
-            Maximum = 100,
-            Value   = 0,
-            Style   = ProgressBarStyle.Continuous,
-            Visible = false,
+            Dock = DockStyle.Fill, Minimum = 0, Maximum = 100, Value = 0,
+            Style = ProgressBarStyle.Continuous, Visible = false,
         };
 
         panel.Controls.Add(header,       0, 0);
@@ -521,12 +568,9 @@ public class MainForm : Form
         var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.BgDeep, Padding = new Padding(10, 0, 10, 0) };
         _statusLabel = new Label
         {
-            Dock      = DockStyle.Fill,
-            ForeColor = AppTheme.TextMuted,
-            BackColor = Color.Transparent,
-            Font      = AppTheme.FontSmall,
-            Text      = "Ready — select a base image, configure your settings, then click Build Image.",
-            TextAlign = ContentAlignment.MiddleLeft,
+            Dock = DockStyle.Fill, ForeColor = AppTheme.TextMuted, BackColor = Color.Transparent,
+            Font = AppTheme.FontSmall, TextAlign = ContentAlignment.MiddleLeft,
+            Text = "Ready — select a base image, configure your settings, then click Build Image.",
         };
         panel.Controls.Add(_statusLabel);
         return panel;
@@ -535,9 +579,7 @@ public class MainForm : Form
     // ── Update logic ──────────────────────────────────────────────────────────
     private async Task CheckForUpdateAsync(bool force = false)
     {
-        var weekly   = _weeklyUpdateCheck?.Checked ?? false;
-        var lastCheck = _lastUpdateCheck;
-        if (!force && !UpdateService.ShouldCheck(weekly, lastCheck)) return;
+        if (!force && (DateTime.UtcNow - _lastUpdateCheck).TotalHours < 1) return;
 
         try
         {
@@ -546,38 +588,29 @@ public class MainForm : Form
             SaveSettings();
             if (info is null) return;
             _pendingUpdate = info;
-            if (_updateBadge.InvokeRequired)
-                _updateBadge.Invoke(() => _updateBadge.Visible = true);
-            else
-                _updateBadge.Visible = true;
+            if (_updateBadge.InvokeRequired) _updateBadge.Invoke(() => _updateBadge.Visible = true);
+            else _updateBadge.Visible = true;
         }
-        catch { /* silent */ }
+        catch { }
     }
 
     private async void OnCheckUpdateClicked(object? s, EventArgs e)
     {
         SetStatus("Checking for updates…");
         await CheckForUpdateAsync(force: true);
-        if (_pendingUpdate is null)
-            SetStatus("You are up to date.");
+        if (_pendingUpdate is null) SetStatus("You are up to date.");
     }
 
     private void OnUpdateBadgeClicked(object? s, EventArgs e)
     {
         if (_pendingUpdate is null) return;
-
         var result = MessageBox.Show(
             $"BaumConfigure v{_pendingUpdate.Version} is available.\n\n" +
-            $"The update will be downloaded and installed automatically.\n" +
-            $"The app will restart when complete.\n\n" +
-            $"Install now?",
-            "Update Available",
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Information);
-
-        if (result != DialogResult.Yes) return;
-
-        _ = InstallUpdateAsync(_pendingUpdate);
+            "The update will be downloaded and installed automatically.\n" +
+            "The app will restart when complete.\n\nInstall now?",
+            "Update Available", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+        if (result == DialogResult.Yes)
+            _ = InstallUpdateAsync(_pendingUpdate);
     }
 
     private async Task InstallUpdateAsync(ReleaseInfo info)
@@ -586,20 +619,17 @@ public class MainForm : Form
         _updateBadge.Visible = false;
         _progressBar.Visible = true;
         SetStatus("Downloading update…");
-        SwitchToOutput();
         Log($"\n── Updating to BaumConfigure v{info.Version} ──");
 
         try
         {
-            await UpdateService.DownloadAndInstallAsync(
-                info,
+            await UpdateService.DownloadAndInstallAsync(info,
                 pct =>
                 {
                     if (_progressBar.InvokeRequired) _progressBar.Invoke(() => _progressBar.Value = pct);
                     else _progressBar.Value = pct;
                     if (pct % 10 == 0) Log($"  Download: {pct}%");
-                },
-                Log);
+                }, Log);
         }
         catch (Exception ex)
         {
@@ -613,17 +643,13 @@ public class MainForm : Form
     // ── Build logic ───────────────────────────────────────────────────────────
     private async void OnBuildClicked(object? s, EventArgs e)
     {
-        if (_buildCts != null)
-        {
-            _buildCts.Cancel();
-            return;
-        }
+        if (_buildCts != null) { _buildCts.Cancel(); return; }
 
         if (!ValidateInputs(out var config, out var baseImage, out var outputPath)) return;
 
-        _buildBtn.Text      = "Cancel";
-        _buildBtn.BackColor = AppTheme.Danger;
-        _progressBar.Value  = 0;
+        _buildBtn.Text       = "Cancel";
+        _buildBtn.BackColor  = AppTheme.Danger;
+        _progressBar.Value   = 0;
         _progressBar.Visible = true;
         SetStatus("Building image…");
         _outputBox.Clear();
@@ -655,6 +681,7 @@ public class MainForm : Form
             Log($"   Output  : {outputPath}");
             Log($"   Hostname: {config.Hostname}  User: {config.Username}  TZ: {config.Timezone}");
             Log($"   Docker  : {config.InstallDocker}  K8s: {config.InstallK8s}  Portainer: {config.InstallPortainer}");
+            Log($"   Network : {(config.ConfigureNetwork ? config.NetworkType + (config.UseDhcp ? "/DHCP" : "/static") : "default")}");
             Log("");
 
             await builder.BuildImageAsync(config, baseImage, outputPath, Log, _buildCts.Token);
@@ -667,16 +694,8 @@ public class MainForm : Form
                 SetStatus($"Image ready: {Path.GetFileName(outputPath)}");
             }
         }
-        catch (OperationCanceledException)
-        {
-            Log("── Build cancelled.");
-            SetStatus("Cancelled.");
-        }
-        catch (Exception ex)
-        {
-            Log($"✘ Error: {ex.Message}");
-            SetStatus("Build failed — see output.");
-        }
+        catch (OperationCanceledException) { Log("── Build cancelled."); SetStatus("Cancelled."); }
+        catch (Exception ex)               { Log($"✘ Error: {ex.Message}"); SetStatus("Build failed — see output."); }
         finally
         {
             _buildCts?.Dispose();
@@ -690,8 +709,8 @@ public class MainForm : Form
     // ── Validation ────────────────────────────────────────────────────────────
     private bool ValidateInputs(out NodeConfig config, out string baseImage, out string outputPath)
     {
-        config     = new NodeConfig();
-        baseImage  = _baseImageBox.Text.Trim();
+        config    = new NodeConfig();
+        baseImage = _baseImageBox.Text.Trim();
         outputPath = "";
 
         if (string.IsNullOrEmpty(baseImage) || !File.Exists(baseImage))
@@ -740,6 +759,11 @@ public class MainForm : Form
         config.ExtraPackages    = _extraPkgBox.Text.Trim();
         config.ExtraRuncmds     = _extraCmdBox.Text.Trim();
 
+        config.AutoPatch           = _autoPatchCheck.Checked;
+        config.LogRotation         = _logRotCheck.Checked;
+        config.WeeklyReboot        = _weeklyRebootCheck.Checked;
+        config.DockerRestartPolicy = _dockerRestartCombo.SelectedItem?.ToString() ?? "unless-stopped";
+
         config.ConfigureNetwork = _configNetCheck.Checked;
         config.NetworkType      = _wifiRadio.Checked ? "wifi" : "ethernet";
         config.UseDhcp          = _dhcpCheck.Checked;
@@ -759,7 +783,7 @@ public class MainForm : Form
     {
         using var dlg = new OpenFileDialog
         {
-            Title  = "Select base Ubuntu image",
+            Title = "Select base Ubuntu image",
             Filter = "Disk images (*.img;*.img.xz)|*.img;*.img.xz|All files (*.*)|*.*",
         };
         if (!string.IsNullOrEmpty(_baseImageBox.Text))
@@ -772,9 +796,8 @@ public class MainForm : Form
     {
         using var dlg = new FolderBrowserDialog
         {
-            Description        = "Select output folder for the built image",
-            UseDescriptionForTitle = true,
-            InitialDirectory   = _outputDirBox.Text,
+            Description = "Select output folder for the built image",
+            UseDescriptionForTitle = true, InitialDirectory = _outputDirBox.Text,
         };
         if (dlg.ShowDialog() == DialogResult.OK)
             _outputDirBox.Text = dlg.SelectedPath;
@@ -790,6 +813,33 @@ public class MainForm : Form
             _baseImageBox.Text = dlg.DownloadedImagePath;
     }
 
+    private void OpenRaspberryPiBrowser(object? s, EventArgs e)
+    {
+        using var dlg = new RaspberryPiBrowserForm();
+        dlg.PresetSaveDir = !string.IsNullOrEmpty(_outputDirBox.Text)
+            ? _outputDirBox.Text
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        if (dlg.ShowDialog(this) == DialogResult.OK && dlg.DownloadedImagePath != null)
+            _baseImageBox.Text = dlg.DownloadedImagePath;
+    }
+
+    // ── Network field enable/disable ──────────────────────────────────────────
+    private void UpdateNetworkFields()
+    {
+        bool active = _configNetCheck.Checked;
+        bool dhcp   = _dhcpCheck.Checked;
+        bool wifi   = _wifiRadio.Checked;
+
+        _ethernetRadio.Enabled = active;
+        _wifiRadio.Enabled     = active;
+        _dhcpCheck.Enabled     = active;
+        _staticIpBox.Enabled   = active && !dhcp;
+        _gatewayBox.Enabled    = active && !dhcp;
+        _dnsBox.Enabled        = active && !dhcp;
+        _wifiSsidBox.Enabled   = active && wifi;
+        _wifiPassBox.Enabled   = active && wifi;
+    }
+
     // ── Password strength ─────────────────────────────────────────────────────
     private void OnPasswordChanged(object? s, EventArgs e)
     {
@@ -802,7 +852,6 @@ public class MainForm : Form
             _passwordStrLbl.ForeColor = AppTheme.TextMuted;
             return;
         }
-
         if (!string.IsNullOrEmpty(conf) && pw != conf)
         {
             _passwordStrLbl.Text      = "Passwords do not match";
@@ -827,11 +876,6 @@ public class MainForm : Form
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    private void SwitchToOutput()
-    {
-        // No-op in single-form layout — output is always visible
-    }
-
     private void Log(string message)
     {
         if (_outputBox.InvokeRequired) { _outputBox.Invoke(() => Log(message)); return; }
@@ -848,54 +892,24 @@ public class MainForm : Form
     private static Label FieldLabel(string text, int x, int y, int w) =>
         new()
         {
-            Text      = text,
-            Location  = new Point(x, y + 4),
-            Width     = w,
-            TextAlign = ContentAlignment.MiddleRight,
-            Font      = AppTheme.FontSmall,
-            ForeColor = AppTheme.TextSecondary,
-            BackColor = Color.Transparent,
+            Text = text, Location = new Point(x, y + 4), Width = w,
+            TextAlign = ContentAlignment.MiddleRight, Font = AppTheme.FontSmall,
+            ForeColor = AppTheme.TextSecondary, BackColor = Color.Transparent,
+        };
+
+    private static Button AccentBtn(string text, int x, int y, int w, int h) =>
+        new()
+        {
+            Text = text, Location = new Point(x, y), Width = w, Height = h,
+            FlatStyle = FlatStyle.Flat, BackColor = AppTheme.BgCard,
+            ForeColor = AppTheme.Accent, Font = AppTheme.FontSmall, Cursor = Cursors.Hand,
         };
 
     private static RadioButton ThemedRadio(string text, int x, int y) =>
         new()
         {
-            Text      = text,
-            Location  = new Point(x, y),
-            AutoSize  = true,
-            ForeColor = AppTheme.TextSecondary,
-            BackColor = Color.Transparent,
-            Font      = AppTheme.FontBody,
-        };
-
-    private void UpdateNetworkFields()
-    {
-        bool active = _configNetCheck.Checked;
-        bool dhcp   = _dhcpCheck.Checked;
-        bool wifi   = _wifiRadio.Checked;
-
-        _ethernetRadio.Enabled = active;
-        _wifiRadio.Enabled     = active;
-        _dhcpCheck.Enabled     = active;
-        _staticIpBox.Enabled   = active && !dhcp;
-        _gatewayBox.Enabled    = active && !dhcp;
-        _dnsBox.Enabled        = active && !dhcp;
-        _wifiSsidBox.Enabled   = active && wifi;
-        _wifiPassBox.Enabled   = active && wifi;
-    }
-
-    private static Button AccentBtn(string text, int x, int y, int w, int h) =>
-        new()
-        {
-            Text      = text,
-            Location  = new Point(x, y),
-            Width     = w,
-            Height    = h,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = AppTheme.BgCard,
-            ForeColor = AppTheme.Accent,
-            Font      = AppTheme.FontSmall,
-            Cursor    = Cursors.Hand,
+            Text = text, Location = new Point(x, y), AutoSize = true,
+            ForeColor = AppTheme.TextSecondary, BackColor = Color.Transparent, Font = AppTheme.FontBody,
         };
 
     // ── Settings persistence ──────────────────────────────────────────────────
@@ -907,34 +921,37 @@ public class MainForm : Form
             File.WriteAllText(SettingsFile, JsonSerializer.Serialize(
                 new AppSettings
                 {
-                    BaseImagePath     = _baseImageBox.Text,
-                    OutputDir         = _outputDirBox.Text,
-                    WslDistro         = _wslDistroBox.Text,
-                    WeeklyUpdatesOnly = _weeklyUpdateCheck?.Checked ?? false,
-                    LastUpdateCheck   = _lastUpdateCheck,
-                    LastConfig        = new NodeConfig
+                    BaseImagePath   = _baseImageBox?.Text ?? "",
+                    OutputDir       = _outputDirBox?.Text ?? "",
+                    WslDistro       = _wslDistroBox?.Text ?? "Ubuntu",
+                    LastUpdateCheck = _lastUpdateCheck,
+                    LastConfig      = new NodeConfig
                     {
-                        Hostname         = _hostnameBox.Text,
-                        Username         = _usernameBox.Text,
-                        Timezone         = _timezoneBox.Text,
-                        InstallDocker    = _dockerCheck.Checked,
-                        InstallK8s       = _k8sCheck.Checked,
-                        InstallPortainer = _portainerCheck.Checked,
-                        ExtraPackages    = _extraPkgBox.Text,
-                        ExtraRuncmds     = _extraCmdBox.Text,
-                        ConfigureNetwork = _configNetCheck.Checked,
-                        NetworkType      = _wifiRadio.Checked ? "wifi" : "ethernet",
-                        UseDhcp          = _dhcpCheck.Checked,
-                        StaticIp         = _staticIpBox.Text,
-                        Gateway          = _gatewayBox.Text,
-                        DnsServers       = _dnsBox.Text,
-                        WifiSsid         = _wifiSsidBox.Text,
-                        WifiPassword     = _wifiPassBox.Text,
+                        Hostname              = _hostnameBox?.Text ?? "",
+                        Username              = _usernameBox?.Text ?? "",
+                        Timezone              = _timezoneBox?.Text ?? "",
+                        InstallDocker         = _dockerCheck?.Checked ?? false,
+                        InstallK8s            = _k8sCheck?.Checked ?? false,
+                        InstallPortainer      = _portainerCheck?.Checked ?? false,
+                        ExtraPackages         = _extraPkgBox?.Text ?? "",
+                        ExtraRuncmds          = _extraCmdBox?.Text ?? "",
+                        AutoPatch             = _autoPatchCheck?.Checked ?? true,
+                        LogRotation           = _logRotCheck?.Checked ?? true,
+                        WeeklyReboot          = _weeklyRebootCheck?.Checked ?? false,
+                        DockerRestartPolicy   = _dockerRestartCombo?.SelectedItem?.ToString() ?? "unless-stopped",
+                        ConfigureNetwork      = _configNetCheck?.Checked ?? false,
+                        NetworkType           = _wifiRadio?.Checked == true ? "wifi" : "ethernet",
+                        UseDhcp               = _dhcpCheck?.Checked ?? true,
+                        StaticIp              = _staticIpBox?.Text ?? "",
+                        Gateway               = _gatewayBox?.Text ?? "",
+                        DnsServers            = _dnsBox?.Text ?? "8.8.8.8,8.8.4.4",
+                        WifiSsid              = _wifiSsidBox?.Text ?? "",
+                        WifiPassword          = _wifiPassBox?.Text ?? "",
                     },
                 },
                 new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch { /* ignore */ }
+        catch { }
     }
 
     private void LoadSettings()
@@ -948,8 +965,7 @@ public class MainForm : Form
             if (!string.IsNullOrEmpty(s.BaseImagePath)) _baseImageBox.Text = s.BaseImagePath;
             if (!string.IsNullOrEmpty(s.OutputDir))     _outputDirBox.Text = s.OutputDir;
             if (!string.IsNullOrEmpty(s.WslDistro))     _wslDistroBox.Text = s.WslDistro;
-            _weeklyUpdateCheck.Checked = s.WeeklyUpdatesOnly;
-            _lastUpdateCheck           = s.LastUpdateCheck;
+            _lastUpdateCheck = s.LastUpdateCheck;
 
             if (s.LastConfig is { } c)
             {
@@ -963,6 +979,12 @@ public class MainForm : Form
                 _extraPkgBox.Text       = c.ExtraPackages;
                 _extraCmdBox.Text       = c.ExtraRuncmds;
 
+                _autoPatchCheck.Checked          = c.AutoPatch;
+                _logRotCheck.Checked             = c.LogRotation;
+                _weeklyRebootCheck.Checked       = c.WeeklyReboot;
+                if (_dockerRestartCombo.Items.Contains(c.DockerRestartPolicy))
+                    _dockerRestartCombo.SelectedItem = c.DockerRestartPolicy;
+
                 _configNetCheck.Checked = c.ConfigureNetwork;
                 _wifiRadio.Checked      = c.NetworkType == "wifi";
                 _ethernetRadio.Checked  = c.NetworkType != "wifi";
@@ -975,7 +997,7 @@ public class MainForm : Form
                 UpdateNetworkFields();
             }
         }
-        catch { /* ignore */ }
+        catch { }
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -990,11 +1012,8 @@ internal class DarkTextBox : TextBox
 {
     public DarkTextBox()
     {
-        BackColor   = AppTheme.BgInput;
-        ForeColor   = AppTheme.TextPrimary;
-        BorderStyle = BorderStyle.FixedSingle;
-        Font        = AppTheme.FontBody;
-        Height      = 26;
+        BackColor = AppTheme.BgInput; ForeColor = AppTheme.TextPrimary;
+        BorderStyle = BorderStyle.FixedSingle; Font = AppTheme.FontBody; Height = 26;
     }
 }
 
@@ -1002,8 +1021,6 @@ internal class DarkCheckBox : CheckBox
 {
     public DarkCheckBox()
     {
-        ForeColor = AppTheme.TextSecondary;
-        BackColor = Color.Transparent;
-        Font      = AppTheme.FontBody;
+        ForeColor = AppTheme.TextSecondary; BackColor = Color.Transparent; Font = AppTheme.FontBody;
     }
 }

@@ -98,7 +98,8 @@ public static class CloudInitService
         sb.AppendLine();
 
         // ── Packages ──────────────────────────────────────────────────────────
-        var packages = new List<string> { "curl", "vim", "htop", "git", "unattended-upgrades", "apt-listchanges" };
+        var packages = new List<string> { "curl", "vim", "htop", "git" };
+        if (c.AutoPatch) packages.AddRange(["unattended-upgrades", "apt-listchanges"]);
 
         if (c.InstallDocker)
         {
@@ -121,7 +122,8 @@ public static class CloudInitService
         sb.AppendLine("runcmd:");
         sb.AppendLine("  - systemctl enable --now ssh");
         sb.AppendLine($"  - timedatectl set-timezone {c.Timezone}");
-        sb.AppendLine("  - dpkg-reconfigure -plow unattended-upgrades");
+        if (c.AutoPatch)
+            sb.AppendLine("  - dpkg-reconfigure -plow unattended-upgrades");
 
         if (c.InstallDocker)
         {
@@ -144,9 +146,25 @@ public static class CloudInitService
 
         if (c.InstallPortainer)
         {
+            var restart = c.DockerRestartPolicy != "no" ? c.DockerRestartPolicy : "no";
             sb.AppendLine("  # Install Portainer CE (requires Docker)");
             sb.AppendLine("  - docker volume create portainer_data");
-            sb.AppendLine("  - docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest");
+            sb.AppendLine($"  - docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart={restart} -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest");
+        }
+
+        if (c.LogRotation)
+        {
+            sb.AppendLine("  # Log rotation");
+            sb.AppendLine("  - journalctl --vacuum-size=100M");
+            sb.AppendLine("  - journalctl --vacuum-time=4weeks");
+            sb.AppendLine("  - bash -c \"printf '/var/log/*.log {\\n  weekly\\n  rotate 4\\n  compress\\n  delaycompress\\n  missingok\\n  notifempty\\n}\\n' > /etc/logrotate.d/baum\"");
+        }
+
+        if (c.WeeklyReboot)
+        {
+            sb.AppendLine("  # Weekly reboot Sunday 2am");
+            sb.AppendLine("  - bash -c \"echo '0 2 * * 0 root /sbin/reboot' > /etc/cron.d/weekly-reboot\"");
+            sb.AppendLine("  - chmod 644 /etc/cron.d/weekly-reboot");
         }
 
         foreach (var cmd in c.ExtraRuncmds.Split('\n', StringSplitOptions.RemoveEmptyEntries))
