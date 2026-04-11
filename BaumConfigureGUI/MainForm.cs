@@ -161,9 +161,9 @@ public class MainForm : Form
 
         Load += (_, _) =>
         {
-            split.Panel1MinSize = 380;
+            split.Panel1MinSize = 480;
             split.Panel2MinSize = 320;
-            try { split.SplitterDistance = 440; } catch { }
+            try { split.SplitterDistance = 520; } catch { }
         };
 
         split.Panel1.Controls.Add(BuildConfigPanel());
@@ -306,7 +306,7 @@ public class MainForm : Form
             y += 20;
             scroll.Controls.Add(new Panel
             {
-                Location = new Point(0, y), Size = new Size(FX + FW + 40, 1),
+                Location = new Point(0, y), Size = new Size(FX + FW, 1),
                 BackColor = AppTheme.Border,
             });
             y += 8;
@@ -455,7 +455,7 @@ public class MainForm : Form
             y += 20;
             scroll.Controls.Add(new Panel
             {
-                Location = new Point(0, y), Size = new Size(FX + FW + 40, 1),
+                Location = new Point(0, y), Size = new Size(FX + FW, 1),
                 BackColor = AppTheme.Border,
             });
             y += 8;

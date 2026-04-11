@@ -59,7 +59,7 @@ sudo apt install libguestfs-tools whois
 
 Download and run the latest installer — no admin rights required:
 
-**[BaumConfigure-Setup-1.5.4.exe](https://github.com/Bruiserbaum/BaumConfigure/releases/latest)**
+**[BaumConfigure-Setup-1.5.5.exe](https://github.com/Bruiserbaum/BaumConfigure/releases/latest)**
 
 ---
 
