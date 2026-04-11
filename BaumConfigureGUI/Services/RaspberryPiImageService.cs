@@ -16,7 +16,7 @@ public record PiImage(
 
 public static class RaspberryPiImageService
 {
-    private const string ListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v3.json";
+    private const string ListUrl = "https://downloads.raspberrypi.org/os_list_imagingutility_v4.json";
 
     private static readonly HttpClient _http = new();
 

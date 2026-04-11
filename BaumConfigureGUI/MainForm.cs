@@ -369,7 +369,9 @@ public class MainForm : Form
 
         scroll.Controls.Add(FieldLabel("WSL Distro:", 0, y, LW));
         _wslDistroBox = new DarkTextBox { Location = new Point(FX, y), Width = 110, Text = "Ubuntu" };
-        scroll.Controls.Add(_wslDistroBox);
+        var setupWslBtn = AccentBtn("Install WSL Tools", FX + 116, y, 148, 26);
+        setupWslBtn.Click += OnSetupWslClicked;
+        scroll.Controls.AddRange([_wslDistroBox, setupWslBtn]);
         y += 34;
 
         // ── System ────────────────────────────────────────────────────────────
@@ -677,6 +679,41 @@ public class MainForm : Form
             _buildBtn.Enabled    = true;
             _progressBar.Visible = false;
         }
+    }
+
+    // ── WSL tool setup ────────────────────────────────────────────────────────
+    private async void OnSetupWslClicked(object? s, EventArgs e)
+    {
+        var btn = (Button)s!;
+        btn.Enabled = false;
+        var distro = _wslDistroBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(distro)) distro = "Ubuntu";
+
+        _outputBox.Clear();
+        Log($"── Installing build tools in WSL ({distro})…");
+        Log("   Packages: libguestfs-tools whois");
+        Log("");
+        SetStatus("Installing WSL tools…");
+
+        try
+        {
+            var wsl = new WslService(distro);
+            await wsl.RunAsync(
+                "sudo apt-get update -y && sudo apt-get install -y libguestfs-tools whois",
+                Log);
+            Log("");
+            Log("✔ WSL tools installed. You can now build images.");
+            SetStatus("WSL tools ready.");
+        }
+        catch (Exception ex)
+        {
+            Log($"✘ {ex.Message}");
+            Log("");
+            Log("If sudo requires a password, run manually in WSL:");
+            Log("  sudo apt-get install -y libguestfs-tools whois");
+            SetStatus("WSL tool install failed — see output.");
+        }
+        finally { btn.Enabled = true; }
     }
 
     // ── Build logic ───────────────────────────────────────────────────────────
