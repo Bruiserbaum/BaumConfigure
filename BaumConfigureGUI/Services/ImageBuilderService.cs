@@ -5,18 +5,21 @@ namespace BaumConfigureGUI.Services;
 
 /// <summary>
 /// Builds a deployable .img from a base image by injecting cloud-init config.
-/// Uses losetup + direct partition mount instead of virt-customize, which does
-/// not work reliably on WSL kernels due to supermin/libguestfs constraints.
+///
+/// losetup requires the target file to live on a native Linux filesystem.
+/// DrvFs mounts (/mnt/c/…) do not support loop devices, so the entire build
+/// works in /tmp (WSL-native ext4) and the finished image is moved to the
+/// Windows output path at the end.
+///
 /// All disk operations run as root via wsl -u root.
 /// </summary>
 public class ImageBuilderService(string wslDistro)
 {
-    private readonly WslService _wsl      = new(wslDistro);
-    private readonly WslService _wslRoot  = new(wslDistro);
+    private readonly WslService _wsl     = new(wslDistro);
+    private readonly WslService _wslRoot = new(wslDistro);
 
     /// <summary>
     /// Hash a plain-text password using sha-512 via mkpasswd in WSL.
-    /// Returns the hash string, or throws on failure.
     /// </summary>
     public async Task<string> HashPasswordAsync(string password)
     {
@@ -36,10 +39,10 @@ public class ImageBuilderService(string wslDistro)
     /// <summary>
     /// Builds a configured .img file from the base image.
     /// Steps:
-    ///   1. Decompress (if .xz) or copy base image to output path
-    ///   2. Mount the root (ext4) partition via losetup
-    ///   3. Inject cloud-init user-data / meta-data (and optional netplan config)
-    ///   4. Unmount and detach
+    ///   1. Decompress (.xz) or copy base image into /tmp on the WSL-native fs
+    ///   2. Attach /tmp image via losetup -fP
+    ///   3. Find the ext4 root partition, mount it, inject cloud-init + netplan
+    ///   4. Unmount, detach loop, move finished image to Windows output path
     /// </summary>
     public async Task BuildImageAsync(
         NodeConfig      config,
@@ -69,33 +72,35 @@ public class ImageBuilderService(string wslDistro)
         var sb = new StringBuilder();
         sb.AppendLine("set -euo pipefail");
         sb.AppendLine();
+        sb.AppendLine("# Use a temp path on the WSL-native filesystem.");
+        sb.AppendLine("# losetup cannot use DrvFs (/mnt/c/…) files.");
+        sb.AppendLine("TMP_IMG=\"/tmp/baumc-$$.img\"");
+        sb.AppendLine();
 
-        // ── Step 1: Prepare output image ──────────────────────────────────────
-        sb.AppendLine("echo '── Step 1/4: Preparing output image...'");
+        // ── Step 1: Decompress or copy to /tmp ───────────────────────────────
+        sb.AppendLine("echo '── Step 1/4: Preparing image on WSL filesystem...'");
         if (isXz)
         {
-            sb.AppendLine($"echo '  Decompressing .xz image (this may take a while)...'");
-            sb.AppendLine($"xz -d -c '{wslBase}' > '{wslOutput}'");
+            sb.AppendLine($"echo '  Decompressing .xz (this may take a while)...'");
+            sb.AppendLine($"xz -d -c '{wslBase}' > \"$TMP_IMG\"");
         }
         else
         {
-            sb.AppendLine($"cp '{wslBase}' '{wslOutput}'");
+            sb.AppendLine($"cp '{wslBase}' \"$TMP_IMG\"");
         }
-        sb.AppendLine($"echo '  Output: {wslOutput}'");
+        sb.AppendLine("echo '  Image staged at $TMP_IMG'");
         sb.AppendLine();
 
-        // ── Step 2: Attach image via losetup ─────────────────────────────────
+        // ── Step 2: Attach via losetup ────────────────────────────────────────
         sb.AppendLine("echo '── Step 2/4: Attaching image...'");
-        sb.AppendLine($"LOOP=$(losetup -fP --show '{wslOutput}')");
+        sb.AppendLine("LOOP=$(losetup -fP --show \"$TMP_IMG\")");
+        sb.AppendLine("[ -n \"$LOOP\" ] || { echo 'ERROR: losetup returned empty device'; rm -f \"$TMP_IMG\"; exit 1; }");
         sb.AppendLine("echo \"  Loop device: $LOOP\"");
         sb.AppendLine("sleep 0.5  # let kernel scan partition table");
         sb.AppendLine();
 
-        // ── Step 3: Find root partition and inject cloud-init ─────────────────
+        // ── Step 3: Find root partition and inject ────────────────────────────
         sb.AppendLine("echo '── Step 3/4: Injecting cloud-init config...'");
-
-        // Try p2 first (Ubuntu preinstalled layout: p1=boot FAT, p2=root ext4)
-        // then scan all partitions for ext4 as fallback
         sb.AppendLine("ROOT_PART=''");
         sb.AppendLine("for PART in ${LOOP}p2 ${LOOP}p1 ${LOOP}p3 ${LOOP}p4; do");
         sb.AppendLine("  [ -b \"$PART\" ] || continue");
@@ -105,8 +110,7 @@ public class ImageBuilderService(string wslDistro)
         sb.AppendLine();
         sb.AppendLine("if [ -z \"$ROOT_PART\" ]; then");
         sb.AppendLine("  echo 'ERROR: No ext4 root partition found in image.'");
-        sb.AppendLine("  losetup -d \"$LOOP\"");
-        sb.AppendLine("  exit 1");
+        sb.AppendLine("  losetup -d \"$LOOP\"; rm -f \"$TMP_IMG\"; exit 1");
         sb.AppendLine("fi");
         sb.AppendLine("echo \"  Root partition: $ROOT_PART\"");
         sb.AppendLine();
@@ -120,24 +124,24 @@ public class ImageBuilderService(string wslDistro)
 
         if (netplan != null)
         {
-            sb.AppendLine($"mkdir -p /tmp/baumc-mnt/etc/netplan");
+            sb.AppendLine("mkdir -p /tmp/baumc-mnt/etc/netplan");
             sb.AppendLine($"cp '{wslTmp}/90-baum-network.yaml' /tmp/baumc-mnt/etc/netplan/90-baum-network.yaml");
             sb.AppendLine("chmod 600 /tmp/baumc-mnt/etc/netplan/90-baum-network.yaml");
         }
 
         sb.AppendLine();
 
-        // ── Step 4: Clean up ──────────────────────────────────────────────────
-        sb.AppendLine("echo '── Step 4/4: Cleaning up...'");
+        // ── Step 4: Unmount, detach, move to output ───────────────────────────
+        sb.AppendLine("echo '── Step 4/4: Finalising...'");
         sb.AppendLine("sync");
         sb.AppendLine("umount /tmp/baumc-mnt");
         sb.AppendLine("losetup -d \"$LOOP\"");
+        sb.AppendLine($"echo '  Moving image to output path...'");
+        sb.AppendLine($"mv \"$TMP_IMG\" '{wslOutput}'");
         sb.AppendLine($"rm -rf '{wslTmp}'");
         sb.AppendLine();
-        sb.AppendLine($"echo ''");
         sb.AppendLine($"echo '✔ Image ready: {wslOutput}'");
 
-        // Run as root — losetup and mount require root privileges
         await _wslRoot.RunAsync(sb.ToString(), onLog, ct, user: "root");
     }
 }
