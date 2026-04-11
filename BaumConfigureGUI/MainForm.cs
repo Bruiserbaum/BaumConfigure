@@ -170,21 +170,24 @@ public class MainForm : Form
         return split;
     }
 
-    // ── Config panel (tabbed) ─────────────────────────────────────────────────
+    // ── Config panel (custom tabs — no TabControl, full dark theme) ──────────
+    private Panel _setupContent  = null!;
+    private Panel _advContent    = null!;
+    private Button _setupTabBtn  = null!;
+    private Button _advTabBtn    = null!;
+
     private Control BuildConfigPanel()
     {
-        var outer = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.BgMain };
+        var outer = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.BgDeep };
 
-        // Build button pinned at bottom
+        // ── Build button pinned at bottom ─────────────────────────────────────
         var buildArea = new Panel
         {
             Dock = DockStyle.Bottom, Height = 58,
             BackColor = AppTheme.BgMain, Padding = new Padding(18, 8, 18, 8),
         };
         buildArea.Controls.Add(new Panel
-        {
-            Dock = DockStyle.Top, Height = 1, BackColor = AppTheme.Border,
-        });
+            { Dock = DockStyle.Top, Height = 1, BackColor = AppTheme.Border });
         _buildBtn = new Button
         {
             Text = "Build Image", Dock = DockStyle.Fill,
@@ -197,50 +200,84 @@ public class MainForm : Form
         _buildBtn.Click += OnBuildClicked;
         buildArea.Controls.Add(_buildBtn);
 
-        // Tab control
-        var tabs = new TabControl
+        // ── Tab header bar ────────────────────────────────────────────────────
+        var tabBar = new Panel
         {
-            Dock = DockStyle.Fill, DrawMode = TabDrawMode.OwnerDrawFixed,
-            SizeMode = TabSizeMode.Fixed, ItemSize = new Size(120, 28),
-            Padding = new Point(0, 0), BackColor = AppTheme.BgMain,
+            Dock = DockStyle.Top, Height = 36, BackColor = AppTheme.BgDeep,
         };
-        tabs.DrawItem += OnDrawTab;
 
-        var setupPage = new TabPage("Setup") { BackColor = AppTheme.BgMain, Padding = new Padding(0) };
-        setupPage.Controls.Add(BuildSetupTab());
+        _setupTabBtn = MakeTabButton("Setup",    0);
+        _advTabBtn   = MakeTabButton("Advanced", 120);
+        _setupTabBtn.Click += (_, _) => SelectConfigTab(setup: true);
+        _advTabBtn.Click   += (_, _) => SelectConfigTab(setup: false);
+        tabBar.Controls.AddRange([_setupTabBtn, _advTabBtn]);
 
-        var advPage = new TabPage("Advanced") { BackColor = AppTheme.BgMain, Padding = new Padding(0) };
-        advPage.Controls.Add(BuildAdvancedTab());
+        // ── Content panels ────────────────────────────────────────────────────
+        _setupContent = (Panel)BuildSetupTab();
+        _advContent   = (Panel)BuildAdvancedTab();
 
-        tabs.TabPages.Add(setupPage);
-        tabs.TabPages.Add(advPage);
+        // Both fill; WinForms excludes hidden controls from layout
+        _setupContent.Dock = DockStyle.Fill;
+        _advContent.Dock   = DockStyle.Fill;
+        _advContent.Visible = false;
 
-        outer.Controls.Add(tabs);
+        var contentArea = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.BgMain };
+        // Add in reverse order so Fill layout works correctly
+        contentArea.Controls.Add(_advContent);
+        contentArea.Controls.Add(_setupContent);
+
+        outer.Controls.Add(contentArea);
+        outer.Controls.Add(tabBar);
         outer.Controls.Add(buildArea);
+
+        SelectConfigTab(setup: true);
         return outer;
     }
 
-    private void OnDrawTab(object? sender, DrawItemEventArgs e)
-    {
-        var tabs    = (TabControl)sender!;
-        bool sel    = e.Index == tabs.SelectedIndex;
-        var bgColor = sel ? AppTheme.BgCard : AppTheme.BgDeep;
-        var fgColor = sel ? AppTheme.TextPrimary : AppTheme.TextMuted;
-
-        using var bg = new SolidBrush(bgColor);
-        e.Graphics.FillRectangle(bg, e.Bounds);
-
-        if (sel)
+    private static Button MakeTabButton(string text, int x) =>
+        new()
         {
-            using var accentBrush = new SolidBrush(AppTheme.Accent);
-            e.Graphics.FillRectangle(accentBrush,
-                new Rectangle(e.Bounds.X, e.Bounds.Bottom - 2, e.Bounds.Width, 2));
-        }
+            Text      = text,
+            Location  = new Point(x, 0),
+            Width     = 120,
+            Height    = 36,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = AppTheme.BgCard,
+            ForeColor = AppTheme.TextPrimary,
+            Font      = AppTheme.FontHeader,
+            Cursor    = Cursors.Hand,
+        };
 
-        using var fg  = new SolidBrush(fgColor);
-        var fmt = new StringFormat
-            { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-        e.Graphics.DrawString(tabs.TabPages[e.Index].Text, AppTheme.FontHeader, fg, e.Bounds, fmt);
+    private void SelectConfigTab(bool setup)
+    {
+        _setupContent.Visible = setup;
+        _advContent.Visible   = !setup;
+
+        _setupTabBtn.BackColor = setup  ? AppTheme.BgCard : AppTheme.BgDeep;
+        _setupTabBtn.ForeColor = setup  ? AppTheme.TextPrimary : AppTheme.TextMuted;
+        _advTabBtn.BackColor   = !setup ? AppTheme.BgCard : AppTheme.BgDeep;
+        _advTabBtn.ForeColor   = !setup ? AppTheme.TextPrimary : AppTheme.TextMuted;
+
+        // Accent underline on selected tab button
+        StyleTabAccent(_setupTabBtn, setup);
+        StyleTabAccent(_advTabBtn,   !setup);
+    }
+
+    private static void StyleTabAccent(Button btn, bool selected)
+    {
+        btn.FlatAppearance.BorderSize  = selected ? 0 : 0;
+        btn.FlatAppearance.BorderColor = AppTheme.BgDeep;
+        // Repaint with accent bottom border
+        btn.Paint -= DrawTabAccent;
+        if (selected) btn.Paint += DrawTabAccent;
+        btn.Invalidate();
+    }
+
+    private static void DrawTabAccent(object? sender, PaintEventArgs e)
+    {
+        var btn = (Button)sender!;
+        using var b = new SolidBrush(AppTheme.Accent);
+        e.Graphics.FillRectangle(b, 0, btn.Height - 3, btn.Width, 3);
     }
 
     // ── Setup tab ─────────────────────────────────────────────────────────────
@@ -386,7 +423,6 @@ public class MainForm : Form
 
         _extraPkgBox = Field("Extra Packages:", "", placeholder: "space or comma separated");
 
-        scroll.AutoScrollMinSize = new Size(0, y);
         return scroll;
     }
 
@@ -511,7 +547,6 @@ public class MainForm : Form
         scroll.Controls.Add(_extraCmdBox);
         y += 88;
 
-        scroll.AutoScrollMinSize = new Size(0, y);
         return scroll;
     }
 

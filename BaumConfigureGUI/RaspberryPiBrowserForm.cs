@@ -240,7 +240,7 @@ public class RaspberryPiBrowserForm : Form
 
         try
         {
-            _categories = await RaspberryPiImageService.FetchCategoriesAsync();
+            _categories = await RaspberryPiImageService.FetchCategoriesAsync(SetStatus);
             foreach (var cat in _categories)
             {
                 var item = new ListViewItem(cat.Name);

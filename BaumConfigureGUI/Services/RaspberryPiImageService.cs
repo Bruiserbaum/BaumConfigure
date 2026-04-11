@@ -11,7 +11,7 @@ public record PiImage(
     string Description,
     string Url,
     string ReleaseDate,
-    long   DownloadSize,   // bytes
+    long   DownloadSize,
     string Devices);
 
 public static class RaspberryPiImageService
@@ -26,39 +26,75 @@ public static class RaspberryPiImageService
         _http.Timeout = TimeSpan.FromSeconds(30);
     }
 
-    public static async Task<List<PiCategory>> FetchCategoriesAsync()
+    public static async Task<List<PiCategory>> FetchCategoriesAsync(Action<string>? onStatus = null)
     {
+        onStatus?.Invoke("Fetching Raspberry Pi OS image list…");
+
         var root = await _http.GetFromJsonAsync<OsListRoot>(ListUrl)
             ?? throw new InvalidOperationException("Failed to parse Raspberry Pi OS list.");
 
         var categories = new List<PiCategory>();
-        foreach (var entry in root.OsList ?? [])
-            FlattenEntry(entry, categories);
+        var tasks = new List<Task>();
 
-        return categories;
+        foreach (var entry in root.OsList ?? [])
+        {
+            // If a subitems_url exists, fetch it in parallel then flatten
+            if (!string.IsNullOrEmpty(entry.SubitemsUrl))
+            {
+                tasks.Add(FetchSubitemsAndAddAsync(entry, categories, onStatus));
+            }
+            else
+            {
+                FlattenEntry(entry, categories);
+            }
+        }
+
+        if (tasks.Count > 0)
+            await Task.WhenAll(tasks);
+
+        return [.. categories.OrderBy(c => c.Name)];
+    }
+
+    private static async Task FetchSubitemsAndAddAsync(
+        OsEntry entry, List<PiCategory> categories, Action<string>? onStatus)
+    {
+        try
+        {
+            onStatus?.Invoke($"Fetching {entry.Name}…");
+            var subRoot = await _http.GetFromJsonAsync<OsListRoot>(entry.SubitemsUrl!)
+                          ?? new OsListRoot();
+
+            // Merge fetched subitems into the entry
+            entry.Subitems ??= [];
+            entry.Subitems.AddRange(subRoot.OsList ?? []);
+        }
+        catch { /* network error for optional sub-list — skip */ }
+
+        FlattenEntry(entry, categories);
     }
 
     private static void FlattenEntry(OsEntry entry, List<PiCategory> categories)
     {
         var images = new List<PiImage>();
 
-        // Direct downloadable image
         if (!string.IsNullOrEmpty(entry.Url))
             images.Add(ToImage(entry));
 
-        // Nested sub-items (ignore subitems_url — requires extra fetches)
         foreach (var sub in entry.Subitems ?? [])
         {
             if (!string.IsNullOrEmpty(sub.Url))
                 images.Add(ToImage(sub));
-            // One more level deep
+
             foreach (var sub2 in sub.Subitems ?? [])
                 if (!string.IsNullOrEmpty(sub2.Url))
                     images.Add(ToImage(sub2));
         }
 
         if (images.Count > 0)
-            categories.Add(new PiCategory(entry.Name ?? "Unknown", images));
+        {
+            lock (categories)
+                categories.Add(new PiCategory(entry.Name ?? "Unknown", images));
+        }
     }
 
     private static PiImage ToImage(OsEntry e) => new(
@@ -89,7 +125,7 @@ public static class RaspberryPiImageService
 
         var buf = new byte[81920];
         long written = 0;
-        int read;
+        int  read;
         while ((read = await src.ReadAsync(buf, ct)) > 0)
         {
             await dest.WriteAsync(buf.AsMemory(0, read), ct);
@@ -106,7 +142,7 @@ public static class RaspberryPiImageService
             var wslFile = WslService.ToWslPath(destFile);
             var wsl = new WslService();
             await wsl.RunAsync($"xz -d -k -f '{wslFile}'", onLog, ct);
-            var imgPath = destFile[..^3]; // strip .xz
+            var imgPath = destFile[..^3];
             onLog($"Decompressed: {Path.GetFileName(imgPath)}");
             return imgPath;
         }
@@ -122,12 +158,13 @@ public static class RaspberryPiImageService
 
     private sealed class OsEntry
     {
-        [JsonPropertyName("name")]                public string?      Name              { get; set; }
-        [JsonPropertyName("description")]         public string?      Description       { get; set; }
-        [JsonPropertyName("url")]                 public string?      Url               { get; set; }
-        [JsonPropertyName("release_date")]        public string?      ReleaseDate       { get; set; }
-        [JsonPropertyName("image_download_size")] public long         ImageDownloadSize { get; set; }
-        [JsonPropertyName("devices")]             public List<string>? Devices          { get; set; }
-        [JsonPropertyName("subitems")]            public List<OsEntry>? Subitems        { get; set; }
+        [JsonPropertyName("name")]                public string?       Name              { get; set; }
+        [JsonPropertyName("description")]         public string?       Description       { get; set; }
+        [JsonPropertyName("url")]                 public string?       Url               { get; set; }
+        [JsonPropertyName("release_date")]        public string?       ReleaseDate       { get; set; }
+        [JsonPropertyName("image_download_size")] public long          ImageDownloadSize { get; set; }
+        [JsonPropertyName("devices")]             public List<string>? Devices           { get; set; }
+        [JsonPropertyName("subitems")]            public List<OsEntry>? Subitems         { get; set; }
+        [JsonPropertyName("subitems_url")]        public string?       SubitemsUrl       { get; set; }
     }
 }
