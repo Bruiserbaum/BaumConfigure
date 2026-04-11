@@ -2,6 +2,9 @@
 BaumConfigureGUI/bin/
 BaumConfigureGUI/obj/
 
+# Installer output binaries
+installer/output/
+
 # OS images — too large for git
 images/*.img
 images/*.img.xz

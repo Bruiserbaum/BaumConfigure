@@ -254,6 +254,13 @@ public class MainForm : Form
         scroll.Controls.AddRange([_baseImageBox, browseImg]);
         y += 30;
 
+        var rockchipBtn = AccentBtn("Get Rockchip Image", FX, y, FW, 24);
+        rockchipBtn.FlatAppearance.BorderColor = AppTheme.Accent;
+        rockchipBtn.FlatAppearance.BorderSize  = 1;
+        rockchipBtn.Click += OpenRockchipBrowser;
+        scroll.Controls.Add(rockchipBtn);
+        y += 30;
+
         scroll.Controls.Add(FieldLabel("Output Folder:", 0, y, LW));
         _outputDirBox = new DarkTextBox { Location = new Point(FX, y), Width = FW - 66, PlaceholderText = "Select output folder…" };
         var browseOut = AccentBtn("Browse…", FX + FW - 60, y, 60, 26);
@@ -665,6 +672,15 @@ public class MainForm : Form
         };
         if (dlg.ShowDialog() == DialogResult.OK)
             _outputDirBox.Text = dlg.SelectedPath;
+    }
+
+    private void OpenRockchipBrowser(object? s, EventArgs e)
+    {
+        using var dlg = new RockchipBrowserForm();
+        if (!string.IsNullOrEmpty(_outputDirBox.Text))
+            dlg.PresetSaveDir = _outputDirBox.Text;
+        if (dlg.ShowDialog(this) == DialogResult.OK && dlg.DownloadedImagePath != null)
+            _baseImageBox.Text = dlg.DownloadedImagePath;
     }
 
     // ── Password strength ─────────────────────────────────────────────────────

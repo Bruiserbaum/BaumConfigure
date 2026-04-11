@@ -8,6 +8,7 @@ Windows GUI for building pre-configured Ubuntu OS images for ARM and x64 servers
 
 - **Dark theme** matching the rest of the BaumLab suite
 - **Image builder** — injects cloud-init config directly into a base `.img` via `virt-customize` in WSL
+- **Rockchip image browser** — browse and download Ubuntu Rockchip releases from GitHub directly in-app, with automatic `.img.xz` decompression via WSL
 - **User setup** — hostname, username, password with live strength indicator and automatic sha-512 hashing
 - **Software options** — Docker (official install script), Kubernetes (kubeadm), Portainer CE
 - **Extra packages and first-boot commands** for custom configuration
@@ -58,7 +59,7 @@ sudo apt install libguestfs-tools whois
 
 Download and run the latest installer — no admin rights required:
 
-**[BaumConfigure-Setup-1.2.0.exe](https://github.com/Bruiserbaum/BaumConfigure/releases/latest)**
+**[BaumConfigure-Setup-1.3.0.exe](https://github.com/Bruiserbaum/BaumConfigure/releases/latest)**
 
 ---
 
@@ -68,6 +69,7 @@ Download to any folder and point BaumConfigure at the file:
 
 | Target | Image | Source |
 |--------|-------|--------|
+| Rockchip SBCs (RK3588, RK3566…) | Ubuntu for Rockchip | Use **Get Rockchip Image** button in BaumConfigure, or [ubuntu-rockchip releases](https://github.com/Joshua-Riek/ubuntu-rockchip/releases) |
 | Turing RK1 (ARM64) | Ubuntu 24.04 for RK1 | [Turing Pi RK1 releases](https://github.com/turing-machines/armbian-build/releases) |
 | Raspberry Pi CM4 (ARM64) | Ubuntu 24.04 Server ARM64 | [Ubuntu Raspberry Pi](https://ubuntu.com/download/raspberry-pi) |
 | Generic x64 server | Ubuntu 24.04 Server x64 | [Ubuntu Server](https://ubuntu.com/download/server) |
@@ -129,12 +131,14 @@ BaumConfigure/
 ├── BaumConfigureGUI/
 │   ├── AppTheme.cs               # Shared colour palette and fonts
 │   ├── MainForm.cs               # Main window
+│   ├── RockchipBrowserForm.cs    # Modal dialog for Rockchip image browser
 │   ├── Models/
 │   │   ├── NodeConfig.cs         # Image configuration model
 │   │   └── AppSettings.cs        # Persisted settings model
 │   ├── Services/
 │   │   ├── CloudInitService.cs   # Generates user-data / meta-data
 │   │   ├── ImageBuilderService.cs# virt-customize build pipeline
+│   │   ├── RockchipImageService.cs# GitHub Rockchip release browser + downloader
 │   │   ├── UpdateService.cs      # GitHub update check + installer
 │   │   └── WslService.cs         # Runs commands in WSL
 │   └── Resources/
