@@ -20,6 +20,17 @@ public class MainForm : Form
     private DarkTextBox   _extraCmdBox     = null!;
     private DarkCheckBox  _weeklyUpdateCheck = null!;
 
+    // ── Network controls ──────────────────────────────────────────────────────
+    private DarkCheckBox  _configNetCheck = null!;
+    private RadioButton   _ethernetRadio  = null!;
+    private RadioButton   _wifiRadio      = null!;
+    private DarkCheckBox  _dhcpCheck      = null!;
+    private DarkTextBox   _staticIpBox    = null!;
+    private DarkTextBox   _gatewayBox     = null!;
+    private DarkTextBox   _dnsBox         = null!;
+    private DarkTextBox   _wifiSsidBox    = null!;
+    private DarkTextBox   _wifiPassBox    = null!;
+
     // ── Path controls ─────────────────────────────────────────────────────────
     private DarkTextBox _baseImageBox = null!;
     private DarkTextBox _outputDirBox = null!;
@@ -52,8 +63,8 @@ public class MainForm : Form
     private void BuildUi()
     {
         Text          = "BaumConfigure";
-        Size          = new Size(1080, 920);
-        MinimumSize   = new Size(880, 840);
+        Size          = new Size(1080, 1060);
+        MinimumSize   = new Size(880, 980);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor     = AppTheme.BgMain;
         ForeColor     = AppTheme.TextPrimary;
@@ -319,6 +330,50 @@ public class MainForm : Form
         };
         scroll.Controls.Add(_passwordStrLbl);
         y += 22;
+
+        // ── Network ───────────────────────────────────────────────────────────
+        y += 4;
+        Section("Network");
+
+        // Row 1: enable toggle + interface type
+        _configNetCheck = new DarkCheckBox { Text = "Configure Network", Location = new Point(FX, y), AutoSize = true };
+        _ethernetRadio  = ThemedRadio("Ethernet", FX + 164, y + 2);
+        _wifiRadio      = ThemedRadio("WiFi",     FX + 244, y + 2);
+        _ethernetRadio.Checked = true;
+        _configNetCheck.CheckedChanged += (_, _) => UpdateNetworkFields();
+        _ethernetRadio.CheckedChanged  += (_, _) => UpdateNetworkFields();
+        scroll.Controls.AddRange([_configNetCheck, _ethernetRadio, _wifiRadio]);
+        y += 28;
+
+        // Row 2: DHCP toggle + static IP
+        _dhcpCheck  = new DarkCheckBox { Text = "DHCP", Location = new Point(FX, y + 3), AutoSize = true, Checked = true };
+        _staticIpBox = new DarkTextBox { Location = new Point(FX + 68, y), Width = FW - 68, PlaceholderText = "e.g. 192.168.1.10/24" };
+        scroll.Controls.Add(FieldLabel("IP / CIDR:", 0, y, LW));
+        _dhcpCheck.CheckedChanged += (_, _) => UpdateNetworkFields();
+        scroll.Controls.AddRange([_dhcpCheck, _staticIpBox]);
+        y += 28;
+
+        // Row 3: Gateway
+        scroll.Controls.Add(FieldLabel("Gateway:", 0, y, LW));
+        _gatewayBox = new DarkTextBox { Location = new Point(FX, y), Width = FW, PlaceholderText = "e.g. 192.168.1.1" };
+        scroll.Controls.Add(_gatewayBox);
+        y += 28;
+
+        // Row 4: DNS
+        scroll.Controls.Add(FieldLabel("DNS Servers:", 0, y, LW));
+        _dnsBox = new DarkTextBox { Location = new Point(FX, y), Width = FW, Text = "8.8.8.8,8.8.4.4" };
+        scroll.Controls.Add(_dnsBox);
+        y += 28;
+
+        // Row 5: WiFi SSID + Password side-by-side
+        scroll.Controls.Add(FieldLabel("WiFi SSID:", 0, y, LW));
+        _wifiSsidBox = new DarkTextBox { Location = new Point(FX, y), Width = 130, PlaceholderText = "Network name" };
+        var wifiPwdLbl = new Label { Text = "Pwd:", Location = new Point(FX + 136, y + 4), AutoSize = true, Font = AppTheme.FontSmall, ForeColor = AppTheme.TextSecondary, BackColor = Color.Transparent };
+        _wifiPassBox = new DarkTextBox { Location = new Point(FX + 166, y), Width = FW - 166, UseSystemPasswordChar = true };
+        scroll.Controls.AddRange([_wifiSsidBox, wifiPwdLbl, _wifiPassBox]);
+        y += 30;
+
+        UpdateNetworkFields();
 
         // ── Software ──────────────────────────────────────────────────────────
         y += 4;
@@ -685,6 +740,15 @@ public class MainForm : Form
         config.ExtraPackages    = _extraPkgBox.Text.Trim();
         config.ExtraRuncmds     = _extraCmdBox.Text.Trim();
 
+        config.ConfigureNetwork = _configNetCheck.Checked;
+        config.NetworkType      = _wifiRadio.Checked ? "wifi" : "ethernet";
+        config.UseDhcp          = _dhcpCheck.Checked;
+        config.StaticIp         = _staticIpBox.Text.Trim();
+        config.Gateway          = _gatewayBox.Text.Trim();
+        config.DnsServers       = _dnsBox.Text.Trim();
+        config.WifiSsid         = _wifiSsidBox.Text.Trim();
+        config.WifiPassword     = _wifiPassBox.Text;
+
         var baseName = Path.GetFileNameWithoutExtension(baseImage);
         outputPath = Path.Combine(outDir, $"{baseName}-{config.Hostname}.img");
         return true;
@@ -793,6 +857,33 @@ public class MainForm : Form
             BackColor = Color.Transparent,
         };
 
+    private static RadioButton ThemedRadio(string text, int x, int y) =>
+        new()
+        {
+            Text      = text,
+            Location  = new Point(x, y),
+            AutoSize  = true,
+            ForeColor = AppTheme.TextSecondary,
+            BackColor = Color.Transparent,
+            Font      = AppTheme.FontBody,
+        };
+
+    private void UpdateNetworkFields()
+    {
+        bool active = _configNetCheck.Checked;
+        bool dhcp   = _dhcpCheck.Checked;
+        bool wifi   = _wifiRadio.Checked;
+
+        _ethernetRadio.Enabled = active;
+        _wifiRadio.Enabled     = active;
+        _dhcpCheck.Enabled     = active;
+        _staticIpBox.Enabled   = active && !dhcp;
+        _gatewayBox.Enabled    = active && !dhcp;
+        _dnsBox.Enabled        = active && !dhcp;
+        _wifiSsidBox.Enabled   = active && wifi;
+        _wifiPassBox.Enabled   = active && wifi;
+    }
+
     private static Button AccentBtn(string text, int x, int y, int w, int h) =>
         new()
         {
@@ -831,6 +922,14 @@ public class MainForm : Form
                         InstallPortainer = _portainerCheck.Checked,
                         ExtraPackages    = _extraPkgBox.Text,
                         ExtraRuncmds     = _extraCmdBox.Text,
+                        ConfigureNetwork = _configNetCheck.Checked,
+                        NetworkType      = _wifiRadio.Checked ? "wifi" : "ethernet",
+                        UseDhcp          = _dhcpCheck.Checked,
+                        StaticIp         = _staticIpBox.Text,
+                        Gateway          = _gatewayBox.Text,
+                        DnsServers       = _dnsBox.Text,
+                        WifiSsid         = _wifiSsidBox.Text,
+                        WifiPassword     = _wifiPassBox.Text,
                     },
                 },
                 new JsonSerializerOptions { WriteIndented = true }));
@@ -863,6 +962,17 @@ public class MainForm : Form
                 _portainerCheck.Enabled = c.InstallDocker;
                 _extraPkgBox.Text       = c.ExtraPackages;
                 _extraCmdBox.Text       = c.ExtraRuncmds;
+
+                _configNetCheck.Checked = c.ConfigureNetwork;
+                _wifiRadio.Checked      = c.NetworkType == "wifi";
+                _ethernetRadio.Checked  = c.NetworkType != "wifi";
+                _dhcpCheck.Checked      = c.UseDhcp;
+                if (!string.IsNullOrEmpty(c.StaticIp))    _staticIpBox.Text  = c.StaticIp;
+                if (!string.IsNullOrEmpty(c.Gateway))     _gatewayBox.Text   = c.Gateway;
+                if (!string.IsNullOrEmpty(c.DnsServers))  _dnsBox.Text       = c.DnsServers;
+                if (!string.IsNullOrEmpty(c.WifiSsid))    _wifiSsidBox.Text  = c.WifiSsid;
+                if (!string.IsNullOrEmpty(c.WifiPassword)) _wifiPassBox.Text = c.WifiPassword;
+                UpdateNetworkFields();
             }
         }
         catch { /* ignore */ }

@@ -50,12 +50,15 @@ public class ImageBuilderService(string wslDistro)
 
         var userData = CloudInitService.GenerateUserData(config);
         var metaData = CloudInitService.GenerateMetaData(config);
+        var netplan  = CloudInitService.GenerateNetplanConfig(config);
 
-        // Write the two config files to disk in Windows temp so we can copy them in via WSL
+        // Write config files to Windows temp so we can copy them in via WSL
         var winTmp  = Path.Combine(Path.GetTempPath(), $"baumc-{config.Hostname}");
         Directory.CreateDirectory(winTmp);
         File.WriteAllText(Path.Combine(winTmp, "user-data"), userData);
         File.WriteAllText(Path.Combine(winTmp, "meta-data"), metaData);
+        if (netplan != null)
+            File.WriteAllText(Path.Combine(winTmp, "90-baum-network.yaml"), netplan);
         var wslTmp = WslService.ToWslPath(winTmp);
 
         var sb = new StringBuilder();
@@ -73,6 +76,11 @@ public class ImageBuilderService(string wslDistro)
         sb.AppendLine($"  -a '{wslOutput}' \\");
         sb.AppendLine($"  --copy-in '{wslTmp}/user-data:/etc/cloud/cloud.cfg.d/' \\");
         sb.AppendLine($"  --copy-in '{wslTmp}/meta-data:/etc/cloud/cloud.cfg.d/' \\");
+        if (netplan != null)
+        {
+            sb.AppendLine($"  --copy-in '{wslTmp}/90-baum-network.yaml:/etc/netplan/' \\");
+            sb.AppendLine("  --run-command 'chmod 600 /etc/netplan/90-baum-network.yaml' \\");
+        }
         sb.AppendLine("  --run-command 'chmod 644 /etc/cloud/cloud.cfg.d/user-data /etc/cloud/cloud.cfg.d/meta-data'");
         sb.AppendLine();
         sb.AppendLine("echo '── Step 4/4: Cleaning up...'");

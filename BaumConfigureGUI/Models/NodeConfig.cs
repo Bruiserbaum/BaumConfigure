@@ -12,4 +12,14 @@ public class NodeConfig
     public bool   InstallPortainer{ get; set; } = false;
     public string ExtraPackages   { get; set; } = "";
     public string ExtraRuncmds    { get; set; } = "";
+
+    // ── Network ───────────────────────────────────────────────────────────────
+    public bool   ConfigureNetwork { get; set; } = false;
+    public string NetworkType      { get; set; } = "ethernet"; // "ethernet" or "wifi"
+    public bool   UseDhcp          { get; set; } = true;
+    public string StaticIp         { get; set; } = "";  // CIDR e.g. 192.168.1.10/24
+    public string Gateway          { get; set; } = "";
+    public string DnsServers       { get; set; } = "8.8.8.8,8.8.4.4";
+    public string WifiSsid         { get; set; } = "";
+    public string WifiPassword     { get; set; } = "";
 }

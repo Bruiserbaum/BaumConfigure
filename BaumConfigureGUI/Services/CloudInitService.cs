@@ -8,6 +8,64 @@ public static class CloudInitService
     public static string GenerateMetaData(NodeConfig c) =>
         $"instance-id: {c.Hostname}-{Guid.NewGuid().ToString("N")[..8]}\nlocal-hostname: {c.Hostname}\n";
 
+    /// <summary>
+    /// Returns a netplan v2 YAML string for /etc/netplan/90-baum-network.yaml,
+    /// or null if network configuration is disabled.
+    /// </summary>
+    public static string? GenerateNetplanConfig(NodeConfig c)
+    {
+        if (!c.ConfigureNetwork) return null;
+
+        bool isWifi = c.NetworkType == "wifi";
+        var sb = new StringBuilder();
+        sb.AppendLine("network:");
+        sb.AppendLine("  version: 2");
+
+        // Always include a DHCP ethernet fallback when WiFi is primary
+        if (isWifi)
+        {
+            sb.AppendLine("  ethernets:");
+            sb.AppendLine("    eth0:");
+            sb.AppendLine("      dhcp4: true");
+            sb.AppendLine("      optional: true");
+        }
+
+        sb.AppendLine(isWifi ? "  wifis:" : "  ethernets:");
+        sb.AppendLine(isWifi ? "    wlan0:" : "    eth0:");
+
+        if (c.UseDhcp)
+        {
+            sb.AppendLine("      dhcp4: true");
+        }
+        else
+        {
+            sb.AppendLine("      dhcp4: false");
+            if (!string.IsNullOrWhiteSpace(c.StaticIp))
+                sb.AppendLine($"      addresses: [{c.StaticIp}]");
+            if (!string.IsNullOrWhiteSpace(c.Gateway))
+                sb.AppendLine($"      routes:");
+                sb.AppendLine($"        - to: default");
+                sb.AppendLine($"          via: {c.Gateway}");
+            var dns = c.DnsServers
+                .Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (dns.Length > 0)
+            {
+                sb.AppendLine("      nameservers:");
+                sb.AppendLine($"        addresses: [{string.Join(", ", dns)}]");
+            }
+        }
+
+        if (isWifi && !string.IsNullOrWhiteSpace(c.WifiSsid))
+        {
+            sb.AppendLine("      access-points:");
+            sb.AppendLine($"        \"{c.WifiSsid}\":");
+            if (!string.IsNullOrWhiteSpace(c.WifiPassword))
+                sb.AppendLine($"          password: \"{c.WifiPassword}\"");
+        }
+
+        return sb.ToString();
+    }
+
     public static string GenerateUserData(NodeConfig c)
     {
         var sb = new StringBuilder();
