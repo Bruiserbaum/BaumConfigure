@@ -42,6 +42,9 @@ public class WslService(string distro = "Ubuntu")
 
         await Task.WhenAll(stdoutTask, stderrTask);
         await process.WaitForExitAsync(ct);
+
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"WSL command failed (exit {process.ExitCode}).");
     }
 
     /// <summary>Converts a Windows path like C:\foo\bar to /mnt/c/foo/bar for WSL.</summary>
