@@ -236,11 +236,20 @@ public class RaspberryPiBrowserForm : Form
         _categoryList.Items.Clear();
         _imageList.Items.Clear();
         _refreshBtn.Enabled = false;
-        SetStatus("Fetching Raspberry Pi OS image list…");
+        SetStatus("Fetching image lists…");
 
         try
         {
-            _categories = await RaspberryPiImageService.FetchCategoriesAsync(SetStatus);
+            // Fetch Pi Imager JSON and Ubuntu Simplestreams in parallel;
+            // each is wrapped so a single source failure doesn't kill the other.
+            var piTask     = SafeFetchAsync(() => RaspberryPiImageService.FetchCategoriesAsync(SetStatus));
+            var ubuntuTask = SafeFetchAsync(() => UbuntuRpiImageService.FetchCategoriesAsync(SetStatus));
+
+            await Task.WhenAll(piTask, ubuntuTask);
+
+            _categories = [.. piTask.Result.Concat(ubuntuTask.Result)
+                                           .OrderBy(c => c.Name)];
+
             foreach (var cat in _categories)
             {
                 var item = new ListViewItem(cat.Name);
@@ -256,6 +265,13 @@ public class RaspberryPiBrowserForm : Form
             Log($"Error: {ex.Message}");
         }
         finally { _refreshBtn.Enabled = true; }
+    }
+
+    /// Runs <paramref name="fetch"/> and returns its result, or an empty list on any error.
+    private static async Task<List<PiCategory>> SafeFetchAsync(Func<Task<List<PiCategory>>> fetch)
+    {
+        try   { return await fetch(); }
+        catch { return [];            }
     }
 
     private void OnCategorySelected(object? s, EventArgs e)
