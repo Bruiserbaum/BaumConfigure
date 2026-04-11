@@ -115,6 +115,18 @@ public static class RaspberryPiImageService
         var fileName = Path.GetFileName(new Uri(image.Url).LocalPath);
         var destFile = Path.Combine(destDir, fileName);
 
+        // If this is a .xz and the decompressed .img already exists, skip everything
+        if (fileName.EndsWith(".xz", StringComparison.OrdinalIgnoreCase))
+        {
+            var earlyImgPath = destFile[..^3];
+            if (File.Exists(earlyImgPath) && new FileInfo(earlyImgPath).Length > 1_000_000)
+            {
+                onLog($"Image already exists, skipping download: {Path.GetFileName(earlyImgPath)}");
+                onProgress(100);
+                return earlyImgPath;
+            }
+        }
+
         onLog($"Downloading {fileName}…");
         using var resp = await _http.GetAsync(image.Url, HttpCompletionOption.ResponseHeadersRead, ct);
         resp.EnsureSuccessStatusCode();
@@ -139,16 +151,27 @@ public static class RaspberryPiImageService
         if (fileName.EndsWith(".xz", StringComparison.OrdinalIgnoreCase))
         {
             var imgPath = destFile[..^3];
+
+            // Skip decompression if a valid .img already exists
+            if (File.Exists(imgPath) && new FileInfo(imgPath).Length > 1_000_000)
+            {
+                onLog($"Image already exists, skipping decompression: {Path.GetFileName(imgPath)}");
+                onProgress(100);
+                return imgPath;
+            }
+
             onLog($"Decompressing {Path.GetFileName(destFile)}…");
             onLog("  (This may take a minute — the image is large)");
 
-            // Use xz -d -c (stdout) redirected by bash so xz never touches the
-            // output path — avoids "Cannot remove: Is a directory" if a stale
-            // directory exists at that location.
+            // Decompress to /tmp (WSL-native ext4) first, then move to the
+            // Windows destination. DrvFs (/mnt/c/…) does not support the
+            // atomic rename that xz uses internally, causing "same file" errors.
             var wslSrc = WslService.ToWslPath(destFile);
             var wslDst = WslService.ToWslPath(imgPath);
             var wsl = new WslService();
-            await wsl.RunAsync($"xz -d -c '{wslSrc}' > '{wslDst}'", onLog, ct);
+            await wsl.RunAsync(
+                $"TMP=/tmp/baumc-dl-$$.img && xz -d -c '{wslSrc}' > \"$TMP\" && mv \"$TMP\" '{wslDst}'",
+                onLog, ct);
             onLog($"Decompressed: {Path.GetFileName(imgPath)}");
             return imgPath;
         }
