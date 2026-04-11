@@ -13,6 +13,9 @@ public class NodeConfig
     public string ExtraPackages   { get; set; } = "";
     public string ExtraRuncmds    { get; set; } = "";
 
+    // ── SSH ───────────────────────────────────────────────────────────────────
+    public bool   SshPasswordAuth       { get; set; } = true;
+
     // ── Tweaks ────────────────────────────────────────────────────────────────
     public bool   AutoPatch            { get; set; } = true;
     public bool   LogRotation          { get; set; } = true;

@@ -16,6 +16,7 @@ public class MainForm : Form
     private DarkTextBox   _passwordConfBox = null!;
     private Label         _passwordStrLbl  = null!;
     private DarkTextBox   _timezoneBox     = null!;
+    private DarkCheckBox  _sshPwdCheck     = null!;
     private DarkCheckBox  _dockerCheck     = null!;
     private DarkCheckBox  _k8sCheck        = null!;
     private DarkCheckBox  _portainerCheck  = null!;
@@ -393,6 +394,9 @@ public class MainForm : Form
         };
         scroll.Controls.Add(_passwordStrLbl);
         y += 22;
+
+        _sshPwdCheck = Check("Enable SSH password login", true, 0);
+        y += 28;
 
         // ── Software ──────────────────────────────────────────────────────────
         y += 4;
@@ -788,6 +792,7 @@ public class MainForm : Form
         config.Username         = _usernameBox.Text.Trim();
         config.Password         = _passwordBox.Text;
         config.Timezone         = _timezoneBox.Text.Trim();
+        config.SshPasswordAuth  = _sshPwdCheck.Checked;
         config.InstallDocker    = _dockerCheck.Checked;
         config.InstallK8s       = _k8sCheck.Checked;
         config.InstallPortainer = _portainerCheck.Checked;
@@ -1007,6 +1012,7 @@ public class MainForm : Form
                 _hostnameBox.Text       = c.Hostname;
                 _usernameBox.Text       = c.Username;
                 _timezoneBox.Text       = c.Timezone;
+                _sshPwdCheck.Checked    = c.SshPasswordAuth;
                 _dockerCheck.Checked    = c.InstallDocker;
                 _k8sCheck.Checked       = c.InstallK8s;
                 _portainerCheck.Checked = c.InstallPortainer;

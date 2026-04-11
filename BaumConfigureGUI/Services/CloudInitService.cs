@@ -93,7 +93,7 @@ public static class CloudInitService
         }
 
         sb.AppendLine();
-        sb.AppendLine("ssh_pwauth: true");
+        sb.AppendLine($"ssh_pwauth: {(c.SshPasswordAuth ? "true" : "false")}");
         sb.AppendLine("disable_root: true");
         sb.AppendLine();
 
