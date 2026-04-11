@@ -151,14 +151,20 @@ public class MainForm : Form
     {
         var split = new SplitContainer
         {
-            Dock             = DockStyle.Fill,
-            Orientation      = Orientation.Vertical,
-            SplitterWidth    = 4,
-            SplitterDistance = 440,
-            Panel1MinSize    = 380,
-            Panel2MinSize    = 320,
-            BackColor        = AppTheme.Border,
+            Dock          = DockStyle.Fill,
+            Orientation   = Orientation.Vertical,
+            SplitterWidth = 4,
+            Panel1MinSize = 380,
+            Panel2MinSize = 320,
+            BackColor     = AppTheme.Border,
         };
+        // SplitterDistance requires a valid width — defer until after layout
+        void OnFirstLayout(object? s, LayoutEventArgs e)
+        {
+            split.Layout -= OnFirstLayout;
+            try { split.SplitterDistance = 440; } catch { }
+        }
+        split.Layout += OnFirstLayout;
         split.Panel1.BackColor = AppTheme.BgMain;
         split.Panel2.BackColor = AppTheme.BgMain;
 
