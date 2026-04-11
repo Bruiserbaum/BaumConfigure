@@ -165,12 +165,14 @@ public static class RaspberryPiImageService
 
             // Decompress to /tmp (WSL-native ext4) first, then move to the
             // Windows destination. DrvFs (/mnt/c/…) does not support the
-            // atomic rename that xz uses internally, causing "same file" errors.
+            // atomic rename that xz uses internally. The temp path is hardcoded
+            // as a literal (no variable expansion) to avoid bash -c quoting issues.
+            const string wslTmp = "/tmp/baumc-download.img";
             var wslSrc = WslService.ToWslPath(destFile);
             var wslDst = WslService.ToWslPath(imgPath);
             var wsl = new WslService();
             await wsl.RunAsync(
-                $"BAUMC_TMP=/tmp/baumc-download.img && rm -f \"$BAUMC_TMP\" && xz -d -c '{wslSrc}' > \"$BAUMC_TMP\" && mv \"$BAUMC_TMP\" '{wslDst}'",
+                $"rm -f {wslTmp} && xz -d -c '{wslSrc}' > {wslTmp} && mv {wslTmp} '{wslDst}'",
                 onLog, ct);
             onLog($"Decompressed: {Path.GetFileName(imgPath)}");
             return imgPath;
