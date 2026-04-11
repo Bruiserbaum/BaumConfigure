@@ -62,7 +62,7 @@ Or click the **Install WSL Tools** button in the app.
 
 Download and run the latest installer — no admin rights required:
 
-**[BaumConfigure-Setup-1.6.0.exe](https://github.com/Bruiserbaum/BaumConfigure/releases/latest)**
+**[BaumConfigure-Setup-1.6.1.exe](https://github.com/Bruiserbaum/BaumConfigure/releases/latest)**
 
 ---
 

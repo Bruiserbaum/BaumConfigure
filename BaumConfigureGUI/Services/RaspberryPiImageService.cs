@@ -138,11 +138,17 @@ public static class RaspberryPiImageService
 
         if (fileName.EndsWith(".xz", StringComparison.OrdinalIgnoreCase))
         {
-            onLog("Decompressing .xz image via WSL…");
-            var wslFile = WslService.ToWslPath(destFile);
-            var wsl = new WslService();
-            await wsl.RunAsync($"xz -d -k -f '{wslFile}'", onLog, ct);
             var imgPath = destFile[..^3];
+            onLog($"Decompressing {Path.GetFileName(destFile)}…");
+            onLog("  (This may take a minute — the image is large)");
+
+            // Use xz -d -c (stdout) redirected by bash so xz never touches the
+            // output path — avoids "Cannot remove: Is a directory" if a stale
+            // directory exists at that location.
+            var wslSrc = WslService.ToWslPath(destFile);
+            var wslDst = WslService.ToWslPath(imgPath);
+            var wsl = new WslService();
+            await wsl.RunAsync($"xz -d -c '{wslSrc}' > '{wslDst}'", onLog, ct);
             onLog($"Decompressed: {Path.GetFileName(imgPath)}");
             return imgPath;
         }
