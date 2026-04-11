@@ -6,7 +6,7 @@ namespace BaumConfigureGUI.Services;
 public static class CloudInitService
 {
     public static string GenerateMetaData(NodeConfig c) =>
-        $"instance-id: {c.Hostname}-{Guid.NewGuid():N[..8]}\nlocal-hostname: {c.Hostname}\n";
+        $"instance-id: {c.Hostname}-{Guid.NewGuid().ToString("N")[..8]}\nlocal-hostname: {c.Hostname}\n";
 
     public static string GenerateUserData(NodeConfig c)
     {

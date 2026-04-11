@@ -11,7 +11,7 @@ public static class UpdateService
 {
     private const string Owner = "Bruiserbaum";
     private const string Repo  = "BaumConfigure";
-    public  const string CurrentVersion = "1.3.2";
+    public  const string CurrentVersion = "1.3.3";
 
     private static readonly HttpClient _http = new();
 
@@ -100,6 +100,10 @@ public static class UpdateService
         // Exit current instance — installer will relaunch it
         Application.Exit();
     }
+
+    /// <summary>Returns true if an update check should run given the schedule settings.</summary>
+    public static bool ShouldCheck(bool weeklyOnly, DateTime lastCheck) =>
+        !weeklyOnly || (DateTime.UtcNow - lastCheck).TotalDays >= 7;
 
     private static bool IsNewer(string candidate, string current)
     {

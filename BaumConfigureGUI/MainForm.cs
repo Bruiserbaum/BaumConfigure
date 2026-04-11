@@ -18,6 +18,7 @@ public class MainForm : Form
     private DarkCheckBox  _portainerCheck  = null!;
     private DarkTextBox   _extraPkgBox     = null!;
     private DarkTextBox   _extraCmdBox     = null!;
+    private DarkCheckBox  _weeklyUpdateCheck = null!;
 
     // ── Path controls ─────────────────────────────────────────────────────────
     private DarkTextBox _baseImageBox = null!;
@@ -33,6 +34,7 @@ public class MainForm : Form
     private ReleaseInfo? _pendingUpdate  = null;
 
     private CancellationTokenSource? _buildCts;
+    private DateTime _lastUpdateCheck = DateTime.MinValue;
 
     private static readonly string SettingsFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -50,8 +52,8 @@ public class MainForm : Form
     private void BuildUi()
     {
         Text          = "BaumConfigure";
-        Size          = new Size(1080, 760);
-        MinimumSize   = new Size(880, 600);
+        Size          = new Size(1080, 920);
+        MinimumSize   = new Size(880, 840);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor     = AppTheme.BgMain;
         ForeColor     = AppTheme.TextPrimary;
@@ -279,6 +281,17 @@ public class MainForm : Form
         scroll.Controls.Add(_wslDistroBox);
         y += 34;
 
+        var checkUpdateBtn = AccentBtn("Check for Updates", FX, y, 150, 24);
+        checkUpdateBtn.Click += OnCheckUpdateClicked;
+        _weeklyUpdateCheck = new DarkCheckBox
+        {
+            Text     = "Weekly only",
+            Location = new Point(FX + 158, y + 2),
+            AutoSize = true,
+        };
+        scroll.Controls.AddRange([checkUpdateBtn, _weeklyUpdateCheck]);
+        y += 32;
+
         // ── System ────────────────────────────────────────────────────────────
         Section("System");
 
@@ -310,6 +323,15 @@ public class MainForm : Form
         // ── Software ──────────────────────────────────────────────────────────
         y += 4;
         Section("Software");
+
+        var presetDockerBtn = AccentBtn("Docker Host", FX, y, 90, 22);
+        var presetK8sBtn    = AccentBtn("K8s Node",    FX + 96,  y, 80, 22);
+        var presetFullBtn   = AccentBtn("Full Stack",  FX + 182, y, 80, 22);
+        presetDockerBtn.Click += (_, _) => { _dockerCheck.Checked = true; _k8sCheck.Checked = false; _portainerCheck.Checked = true; };
+        presetK8sBtn.Click    += (_, _) => { _dockerCheck.Checked = true; _k8sCheck.Checked = true;  _portainerCheck.Checked = false; };
+        presetFullBtn.Click   += (_, _) => { _dockerCheck.Checked = true; _k8sCheck.Checked = true;  _portainerCheck.Checked = true; };
+        scroll.Controls.AddRange([presetDockerBtn, presetK8sBtn, presetFullBtn]);
+        y += 28;
 
         _dockerCheck = Check("Docker", false, 0);
         _k8sCheck    = Check("Kubernetes", false, 80);
@@ -456,11 +478,17 @@ public class MainForm : Form
     }
 
     // ── Update logic ──────────────────────────────────────────────────────────
-    private async Task CheckForUpdateAsync()
+    private async Task CheckForUpdateAsync(bool force = false)
     {
+        var weekly   = _weeklyUpdateCheck?.Checked ?? false;
+        var lastCheck = _lastUpdateCheck;
+        if (!force && !UpdateService.ShouldCheck(weekly, lastCheck)) return;
+
         try
         {
             var info = await UpdateService.CheckAsync();
+            _lastUpdateCheck = DateTime.UtcNow;
+            SaveSettings();
             if (info is null) return;
             _pendingUpdate = info;
             if (_updateBadge.InvokeRequired)
@@ -469,6 +497,14 @@ public class MainForm : Form
                 _updateBadge.Visible = true;
         }
         catch { /* silent */ }
+    }
+
+    private async void OnCheckUpdateClicked(object? s, EventArgs e)
+    {
+        SetStatus("Checking for updates…");
+        await CheckForUpdateAsync(force: true);
+        if (_pendingUpdate is null)
+            SetStatus("You are up to date.");
     }
 
     private void OnUpdateBadgeClicked(object? s, EventArgs e)
@@ -683,8 +719,9 @@ public class MainForm : Form
     private void OpenRockchipBrowser(object? s, EventArgs e)
     {
         using var dlg = new RockchipBrowserForm();
-        if (!string.IsNullOrEmpty(_outputDirBox.Text))
-            dlg.PresetSaveDir = _outputDirBox.Text;
+        dlg.PresetSaveDir = !string.IsNullOrEmpty(_outputDirBox.Text)
+            ? _outputDirBox.Text
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
         if (dlg.ShowDialog(this) == DialogResult.OK && dlg.DownloadedImagePath != null)
             _baseImageBox.Text = dlg.DownloadedImagePath;
     }
@@ -779,10 +816,12 @@ public class MainForm : Form
             File.WriteAllText(SettingsFile, JsonSerializer.Serialize(
                 new AppSettings
                 {
-                    BaseImagePath = _baseImageBox.Text,
-                    OutputDir     = _outputDirBox.Text,
-                    WslDistro     = _wslDistroBox.Text,
-                    LastConfig    = new NodeConfig
+                    BaseImagePath     = _baseImageBox.Text,
+                    OutputDir         = _outputDirBox.Text,
+                    WslDistro         = _wslDistroBox.Text,
+                    WeeklyUpdatesOnly = _weeklyUpdateCheck?.Checked ?? false,
+                    LastUpdateCheck   = _lastUpdateCheck,
+                    LastConfig        = new NodeConfig
                     {
                         Hostname         = _hostnameBox.Text,
                         Username         = _usernameBox.Text,
@@ -810,6 +849,8 @@ public class MainForm : Form
             if (!string.IsNullOrEmpty(s.BaseImagePath)) _baseImageBox.Text = s.BaseImagePath;
             if (!string.IsNullOrEmpty(s.OutputDir))     _outputDirBox.Text = s.OutputDir;
             if (!string.IsNullOrEmpty(s.WslDistro))     _wslDistroBox.Text = s.WslDistro;
+            _weeklyUpdateCheck.Checked = s.WeeklyUpdatesOnly;
+            _lastUpdateCheck           = s.LastUpdateCheck;
 
             if (s.LastConfig is { } c)
             {
