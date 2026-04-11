@@ -143,6 +143,6 @@ public class ImageBuilderService(string wslDistro)
         sb.AppendLine();
         sb.AppendLine($"echo '✔ Image ready: {wslOutput}'");
 
-        await _wslRoot.RunAsync(sb.ToString(), onLog, ct, user: "root");
+        await _wslRoot.RunScriptAsync(sb.ToString(), onLog, ct, user: "root");
     }
 }

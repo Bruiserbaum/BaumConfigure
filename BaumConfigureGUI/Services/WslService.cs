@@ -53,6 +53,31 @@ public class WslService(string distro = "Ubuntu")
             throw new InvalidOperationException($"WSL command failed (exit {process.ExitCode}).");
     }
 
+    /// <summary>
+    /// Writes <paramref name="script"/> to a Windows temp file with Unix line endings,
+    /// then executes it via <c>bash /mnt/c/…/script.sh</c>.
+    /// This avoids CRLF contamination that occurs when passing multi-line scripts
+    /// through <c>bash -c</c> via wsl.exe argument forwarding.
+    /// </summary>
+    public async Task RunScriptAsync(string script, Action<string> onOutput,
+        CancellationToken ct = default, string? user = null)
+    {
+        var tmpPath = Path.Combine(Path.GetTempPath(), $"baumc-{Guid.NewGuid():N}.sh");
+        // Write with Unix LF endings and no BOM so bash can execute it cleanly
+        await File.WriteAllTextAsync(tmpPath,
+            script.Replace("\r\n", "\n").Replace("\r", "\n"),
+            new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false), ct);
+        try
+        {
+            var wslPath = ToWslPath(tmpPath);
+            await RunAsync($"bash '{wslPath}'", onOutput, ct, user);
+        }
+        finally
+        {
+            File.Delete(tmpPath);
+        }
+    }
+
     /// <summary>Converts a Windows path like C:\foo\bar to /mnt/c/foo/bar for WSL.</summary>
     public static string ToWslPath(string windowsPath)
     {
