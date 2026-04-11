@@ -1,6 +1,6 @@
 #define AppName      "BaumConfigure"
-#define AppVersion   "1.3.3"
-#define AppVersionFull "1.3.3"
+#define AppVersion   "1.3.4"
+#define AppVersionFull "1.3.4"
 #define AppPublisher "Bruiserbaum"
 #define AppExeName   "BaumConfigure.exe"
 #define PublishDir   "..\BaumConfigureGUI\bin\Release\net8.0-windows\win-x64\publish"

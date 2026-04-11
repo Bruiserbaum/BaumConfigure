@@ -23,7 +23,7 @@ public class WslService(string distro = "Ubuntu")
         psi.ArgumentList.Add("--");
         psi.ArgumentList.Add("bash");
         psi.ArgumentList.Add("-c");
-        psi.ArgumentList.Add(command);
+        psi.ArgumentList.Add(command.Replace("\r\n", "\n").Replace("\r", "\n"));
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start wsl.exe");

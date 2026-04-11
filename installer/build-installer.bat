@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set VERSION=1.3.3
+set VERSION=1.3.4
 set PROJECT=..\BaumConfigureGUI\BaumConfigureGUI.csproj
 
 echo === BaumConfigure Installer Build ===
