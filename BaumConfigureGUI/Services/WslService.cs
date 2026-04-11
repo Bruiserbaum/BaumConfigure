@@ -4,7 +4,8 @@ namespace BaumConfigureGUI.Services;
 
 public class WslService(string distro = "Ubuntu")
 {
-    public async Task RunAsync(string command, Action<string> onOutput, CancellationToken ct = default)
+    public async Task RunAsync(string command, Action<string> onOutput,
+        CancellationToken ct = default, string? user = null)
     {
         var psi = new ProcessStartInfo
         {
@@ -19,6 +20,11 @@ public class WslService(string distro = "Ubuntu")
         {
             psi.ArgumentList.Add("-d");
             psi.ArgumentList.Add(distro);
+        }
+        if (!string.IsNullOrWhiteSpace(user))
+        {
+            psi.ArgumentList.Add("-u");
+            psi.ArgumentList.Add(user);
         }
         psi.ArgumentList.Add("--");
         psi.ArgumentList.Add("bash");

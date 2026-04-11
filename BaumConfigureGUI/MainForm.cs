@@ -697,10 +697,13 @@ public class MainForm : Form
 
         try
         {
+            // Run as root to avoid interactive sudo prompts in non-TTY WSL sessions.
+            // DEBIAN_FRONTEND=noninteractive prevents apt from asking any questions.
             var wsl = new WslService(distro);
             await wsl.RunAsync(
-                "sudo apt-get update -y && sudo apt-get install -y libguestfs-tools whois",
-                Log);
+                "DEBIAN_FRONTEND=noninteractive apt-get update -y && " +
+                "DEBIAN_FRONTEND=noninteractive apt-get install -y libguestfs-tools whois",
+                Log, user: "root");
             Log("");
             Log("✔ WSL tools installed. You can now build images.");
             SetStatus("WSL tools ready.");
@@ -709,7 +712,7 @@ public class MainForm : Form
         {
             Log($"✘ {ex.Message}");
             Log("");
-            Log("If sudo requires a password, run manually in WSL:");
+            Log("Run manually in WSL:");
             Log("  sudo apt-get install -y libguestfs-tools whois");
             SetStatus("WSL tool install failed — see output.");
         }
