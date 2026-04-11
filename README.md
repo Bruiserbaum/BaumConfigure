@@ -45,13 +45,16 @@ Configured .img  ──►  Flash to node via BMC or balenaEtcher
 
 ### Inside WSL
 ```bash
-sudo apt install libguestfs-tools whois
+sudo apt install whois xz-utils
 ```
+
+Or click the **Install WSL Tools** button in the app.
 
 | Tool | Purpose |
 |------|---------|
-| `virt-customize` (libguestfs-tools) | Injects cloud-init config into the image |
 | `mkpasswd` (whois) | Hashes the password to sha-512 at build time |
+| `xz-utils` | Decompresses `.img.xz` base images |
+| `losetup` / `mount` / `blkid` | Mounts image partition to inject cloud-init — included in Ubuntu WSL by default |
 
 ---
 
@@ -59,7 +62,7 @@ sudo apt install libguestfs-tools whois
 
 Download and run the latest installer — no admin rights required:
 
-**[BaumConfigure-Setup-1.5.8.exe](https://github.com/Bruiserbaum/BaumConfigure/releases/latest)**
+**[BaumConfigure-Setup-1.5.9.exe](https://github.com/Bruiserbaum/BaumConfigure/releases/latest)**
 
 ---
 

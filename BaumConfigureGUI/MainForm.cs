@@ -691,7 +691,7 @@ public class MainForm : Form
 
         _outputBox.Clear();
         Log($"── Installing build tools in WSL ({distro})…");
-        Log("   Packages: libguestfs-tools whois");
+        Log("   Packages: whois xz-utils");
         Log("");
         SetStatus("Installing WSL tools…");
 
@@ -702,7 +702,7 @@ public class MainForm : Form
             var wsl = new WslService(distro);
             await wsl.RunAsync(
                 "DEBIAN_FRONTEND=noninteractive apt-get update -y && " +
-                "DEBIAN_FRONTEND=noninteractive apt-get install -y libguestfs-tools whois",
+                "DEBIAN_FRONTEND=noninteractive apt-get install -y whois xz-utils",
                 Log, user: "root");
             Log("");
             Log("✔ WSL tools installed. You can now build images.");
@@ -853,7 +853,12 @@ public class MainForm : Form
         config.WifiSsid         = _wifiSsidBox.Text.Trim();
         config.WifiPassword     = _wifiPassBox.Text;
 
-        var baseName = Path.GetFileNameWithoutExtension(baseImage);
+        // Strip compression extension first (.xz, .gz, .bz2, .zst), then .img
+        var stripped = baseImage;
+        foreach (var cext in new[] { ".xz", ".gz", ".bz2", ".zst" })
+            if (stripped.EndsWith(cext, StringComparison.OrdinalIgnoreCase))
+                stripped = stripped[..^cext.Length];
+        var baseName = Path.GetFileNameWithoutExtension(stripped);
         outputPath = Path.Combine(outDir, $"{baseName}-{config.Hostname}.img");
         return true;
     }

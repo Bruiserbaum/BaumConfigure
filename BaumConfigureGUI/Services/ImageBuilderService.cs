@@ -5,11 +5,14 @@ namespace BaumConfigureGUI.Services;
 
 /// <summary>
 /// Builds a deployable .img from a base image by injecting cloud-init config.
-/// All heavy lifting runs inside WSL via virt-customize.
+/// Uses losetup + direct partition mount instead of virt-customize, which does
+/// not work reliably on WSL kernels due to supermin/libguestfs constraints.
+/// All disk operations run as root via wsl -u root.
 /// </summary>
 public class ImageBuilderService(string wslDistro)
 {
-    private readonly WslService _wsl = new(wslDistro);
+    private readonly WslService _wsl      = new(wslDistro);
+    private readonly WslService _wslRoot  = new(wslDistro);
 
     /// <summary>
     /// Hash a plain-text password using sha-512 via mkpasswd in WSL.
@@ -33,9 +36,10 @@ public class ImageBuilderService(string wslDistro)
     /// <summary>
     /// Builds a configured .img file from the base image.
     /// Steps:
-    ///   1. Copy base image to output path
-    ///   2. Write user-data / meta-data to a temp dir in WSL
-    ///   3. Use virt-customize to inject them into the image copy
+    ///   1. Decompress (if .xz) or copy base image to output path
+    ///   2. Mount the root (ext4) partition via losetup
+    ///   3. Inject cloud-init user-data / meta-data (and optional netplan config)
+    ///   4. Unmount and detach
     /// </summary>
     public async Task BuildImageAsync(
         NodeConfig      config,
@@ -46,14 +50,13 @@ public class ImageBuilderService(string wslDistro)
     {
         var wslBase   = WslService.ToWslPath(baseImagePath);
         var wslOutput = WslService.ToWslPath(outputImagePath);
-        var tmpDir    = $"/tmp/baumc-{config.Hostname}-{DateTime.Now:yyyyMMddHHmmss}";
 
         var userData = CloudInitService.GenerateUserData(config);
         var metaData = CloudInitService.GenerateMetaData(config);
         var netplan  = CloudInitService.GenerateNetplanConfig(config);
 
-        // Write config files to Windows temp so we can copy them in via WSL
-        var winTmp  = Path.Combine(Path.GetTempPath(), $"baumc-{config.Hostname}");
+        // Write config files to Windows temp so WSL can read them via /mnt/
+        var winTmp = Path.Combine(Path.GetTempPath(), $"baumc-{config.Hostname}");
         Directory.CreateDirectory(winTmp);
         File.WriteAllText(Path.Combine(winTmp, "user-data"), userData);
         File.WriteAllText(Path.Combine(winTmp, "meta-data"), metaData);
@@ -61,34 +64,80 @@ public class ImageBuilderService(string wslDistro)
             File.WriteAllText(Path.Combine(winTmp, "90-baum-network.yaml"), netplan);
         var wslTmp = WslService.ToWslPath(winTmp);
 
+        bool isXz = baseImagePath.EndsWith(".xz", StringComparison.OrdinalIgnoreCase);
+
         var sb = new StringBuilder();
         sb.AppendLine("set -euo pipefail");
         sb.AppendLine();
-        sb.AppendLine("echo '── Step 1/4: Checking for virt-customize...'");
-        sb.AppendLine("command -v virt-customize >/dev/null || { echo 'ERROR: virt-customize not found.'; echo 'Install with: sudo apt install libguestfs-tools'; exit 1; }");
+
+        // ── Step 1: Prepare output image ──────────────────────────────────────
+        sb.AppendLine("echo '── Step 1/4: Preparing output image...'");
+        if (isXz)
+        {
+            sb.AppendLine($"echo '  Decompressing .xz image (this may take a while)...'");
+            sb.AppendLine($"xz -d -c '{wslBase}' > '{wslOutput}'");
+        }
+        else
+        {
+            sb.AppendLine($"cp '{wslBase}' '{wslOutput}'");
+        }
+        sb.AppendLine($"echo '  Output: {wslOutput}'");
         sb.AppendLine();
-        sb.AppendLine("echo '── Step 2/4: Copying base image...'");
-        sb.AppendLine($"cp '{wslBase}' '{wslOutput}'");
-        sb.AppendLine($"echo '  Copied to {wslOutput}'");
+
+        // ── Step 2: Attach image via losetup ─────────────────────────────────
+        sb.AppendLine("echo '── Step 2/4: Attaching image...'");
+        sb.AppendLine($"LOOP=$(losetup -fP --show '{wslOutput}')");
+        sb.AppendLine("echo \"  Loop device: $LOOP\"");
+        sb.AppendLine("sleep 0.5  # let kernel scan partition table");
         sb.AppendLine();
+
+        // ── Step 3: Find root partition and inject cloud-init ─────────────────
         sb.AppendLine("echo '── Step 3/4: Injecting cloud-init config...'");
-        sb.AppendLine($"LIBGUESTFS_BACKEND=direct virt-customize \\");
-        sb.AppendLine($"  -a '{wslOutput}' \\");
-        sb.AppendLine($"  --copy-in '{wslTmp}/user-data:/etc/cloud/cloud.cfg.d/' \\");
-        sb.AppendLine($"  --copy-in '{wslTmp}/meta-data:/etc/cloud/cloud.cfg.d/' \\");
+
+        // Try p2 first (Ubuntu preinstalled layout: p1=boot FAT, p2=root ext4)
+        // then scan all partitions for ext4 as fallback
+        sb.AppendLine("ROOT_PART=''");
+        sb.AppendLine("for PART in ${LOOP}p2 ${LOOP}p1 ${LOOP}p3 ${LOOP}p4; do");
+        sb.AppendLine("  [ -b \"$PART\" ] || continue");
+        sb.AppendLine("  FSTYPE=$(blkid -o value -s TYPE \"$PART\" 2>/dev/null || echo '')");
+        sb.AppendLine("  if [ \"$FSTYPE\" = 'ext4' ]; then ROOT_PART=\"$PART\"; break; fi");
+        sb.AppendLine("done");
+        sb.AppendLine();
+        sb.AppendLine("if [ -z \"$ROOT_PART\" ]; then");
+        sb.AppendLine("  echo 'ERROR: No ext4 root partition found in image.'");
+        sb.AppendLine("  losetup -d \"$LOOP\"");
+        sb.AppendLine("  exit 1");
+        sb.AppendLine("fi");
+        sb.AppendLine("echo \"  Root partition: $ROOT_PART\"");
+        sb.AppendLine();
+        sb.AppendLine("mkdir -p /tmp/baumc-mnt");
+        sb.AppendLine("mount \"$ROOT_PART\" /tmp/baumc-mnt");
+        sb.AppendLine();
+        sb.AppendLine("mkdir -p /tmp/baumc-mnt/etc/cloud/cloud.cfg.d");
+        sb.AppendLine($"cp '{wslTmp}/user-data' /tmp/baumc-mnt/etc/cloud/cloud.cfg.d/user-data");
+        sb.AppendLine($"cp '{wslTmp}/meta-data' /tmp/baumc-mnt/etc/cloud/cloud.cfg.d/meta-data");
+        sb.AppendLine("chmod 644 /tmp/baumc-mnt/etc/cloud/cloud.cfg.d/user-data /tmp/baumc-mnt/etc/cloud/cloud.cfg.d/meta-data");
+
         if (netplan != null)
         {
-            sb.AppendLine($"  --copy-in '{wslTmp}/90-baum-network.yaml:/etc/netplan/' \\");
-            sb.AppendLine("  --run-command 'chmod 600 /etc/netplan/90-baum-network.yaml' \\");
+            sb.AppendLine($"mkdir -p /tmp/baumc-mnt/etc/netplan");
+            sb.AppendLine($"cp '{wslTmp}/90-baum-network.yaml' /tmp/baumc-mnt/etc/netplan/90-baum-network.yaml");
+            sb.AppendLine("chmod 600 /tmp/baumc-mnt/etc/netplan/90-baum-network.yaml");
         }
-        sb.AppendLine("  --run-command 'chmod 644 /etc/cloud/cloud.cfg.d/user-data /etc/cloud/cloud.cfg.d/meta-data'");
+
         sb.AppendLine();
+
+        // ── Step 4: Clean up ──────────────────────────────────────────────────
         sb.AppendLine("echo '── Step 4/4: Cleaning up...'");
+        sb.AppendLine("sync");
+        sb.AppendLine("umount /tmp/baumc-mnt");
+        sb.AppendLine("losetup -d \"$LOOP\"");
         sb.AppendLine($"rm -rf '{wslTmp}'");
         sb.AppendLine();
         sb.AppendLine($"echo ''");
         sb.AppendLine($"echo '✔ Image ready: {wslOutput}'");
 
-        await _wsl.RunAsync(sb.ToString(), onLog, ct);
+        // Run as root — losetup and mount require root privileges
+        await _wslRoot.RunAsync(sb.ToString(), onLog, ct, user: "root");
     }
 }
