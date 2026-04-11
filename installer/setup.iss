@@ -1,6 +1,6 @@
 #define AppName      "BaumConfigure"
-#define AppVersion   "1.5.1"
-#define AppVersionFull "1.5.1"
+#define AppVersion   "1.5.2"
+#define AppVersionFull "1.5.2"
 #define AppPublisher "Bruiserbaum"
 #define AppExeName   "BaumConfigure.exe"
 #define PublishDir   "..\BaumConfigureGUI\bin\Release\net8.0-windows\win-x64\publish"
@@ -45,7 +45,10 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall
+; Silent update path: auto-launch after install (postinstall is skipped in /VERYSILENT mode)
+Filename: "{app}\{#AppExeName}"; Flags: nowait runascurrentuser; Check: WizardSilent
+; Interactive install path: show "Launch" checkbox at end
+Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: files; Name: "{app}\*.json"

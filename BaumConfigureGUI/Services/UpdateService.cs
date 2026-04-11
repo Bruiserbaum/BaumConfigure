@@ -11,7 +11,7 @@ public static class UpdateService
 {
     private const string Owner = "Bruiserbaum";
     private const string Repo  = "BaumConfigure";
-    public  const string CurrentVersion = "1.5.1";
+    public  const string CurrentVersion = "1.5.2";
 
     private static readonly HttpClient _http = new();
 
@@ -88,11 +88,11 @@ public static class UpdateService
 
         onLog("Installing update…");
 
-        // Run installer; /CLOSEAPPLICATIONS closes this running instance automatically,
-        // /RESTARTAPPLICATIONS relaunches it after install completes.
+        // Run installer silently. The setup.iss [Run] section has a WizardSilent entry
+        // that auto-launches the app after install, making restart reliable.
         var psi = new ProcessStartInfo(tmpPath)
         {
-            Arguments       = "/VERYSILENT /NORESTART /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS",
+            Arguments       = "/VERYSILENT /NORESTART /CLOSEAPPLICATIONS",
             UseShellExecute = true,
         };
         Process.Start(psi);
