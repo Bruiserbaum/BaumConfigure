@@ -154,17 +154,17 @@ public class MainForm : Form
             Dock          = DockStyle.Fill,
             Orientation   = Orientation.Vertical,
             SplitterWidth = 4,
-            Panel1MinSize = 380,
-            Panel2MinSize = 320,
             BackColor     = AppTheme.Border,
         };
-        // SplitterDistance requires a valid width — defer until after layout
-        void OnFirstLayout(object? s, LayoutEventArgs e)
+        // Panel1/2MinSize and SplitterDistance all call set_SplitterDistance
+        // internally, which requires the control to have a valid width.
+        // Defer until the form is fully loaded and sized.
+        Load += (_, _) =>
         {
-            split.Layout -= OnFirstLayout;
+            split.Panel1MinSize = 380;
+            split.Panel2MinSize = 320;
             try { split.SplitterDistance = 440; } catch { }
-        }
-        split.Layout += OnFirstLayout;
+        };
         split.Panel1.BackColor = AppTheme.BgMain;
         split.Panel2.BackColor = AppTheme.BgMain;
 
