@@ -170,7 +170,7 @@ public static class RaspberryPiImageService
             var wslDst = WslService.ToWslPath(imgPath);
             var wsl = new WslService();
             await wsl.RunAsync(
-                $"TMP=/tmp/baumc-dl-$$.img && xz -d -c '{wslSrc}' > \"$TMP\" && mv \"$TMP\" '{wslDst}'",
+                $"BAUMC_TMP=$(mktemp /tmp/baumc-XXXXXX.img) && xz -d -c '{wslSrc}' > \"$BAUMC_TMP\" && mv \"$BAUMC_TMP\" '{wslDst}'",
                 onLog, ct);
             onLog($"Decompressed: {Path.GetFileName(imgPath)}");
             return imgPath;

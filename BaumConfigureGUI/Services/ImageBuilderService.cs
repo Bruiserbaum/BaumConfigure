@@ -74,7 +74,8 @@ public class ImageBuilderService(string wslDistro)
         sb.AppendLine();
         sb.AppendLine("# Use a temp path on the WSL-native filesystem.");
         sb.AppendLine("# losetup cannot use DrvFs (/mnt/c/…) files.");
-        sb.AppendLine("TMP_IMG=\"/tmp/baumc-$$.img\"");
+        sb.AppendLine("TMP_IMG=$(mktemp /tmp/baumc-XXXXXX.img)");
+        sb.AppendLine("echo \"  Temp image path: $TMP_IMG\"");
         sb.AppendLine();
 
         // ── Step 1: Decompress or copy to /tmp ───────────────────────────────
