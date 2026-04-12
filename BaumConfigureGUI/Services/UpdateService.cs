@@ -11,7 +11,7 @@ public static class UpdateService
 {
     private const string Owner = "Bruiserbaum";
     private const string Repo  = "BaumConfigure";
-    public  const string CurrentVersion = "1.6.7";
+    public  const string CurrentVersion = "1.6.8";
 
     private static readonly HttpClient _http = new();
 

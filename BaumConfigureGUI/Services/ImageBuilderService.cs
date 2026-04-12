@@ -100,8 +100,19 @@ public class ImageBuilderService(string wslDistro)
         sb.AppendLine("sleep 0.5  # let kernel scan partition table");
         sb.AppendLine();
 
-        // ── Step 3: Find root partition and inject ────────────────────────────
+        // ── Step 3: Find partitions and inject cloud-init ─────────────────────
         sb.AppendLine("echo '── Step 3/4: Injecting cloud-init config...'");
+
+        // Find FAT32 system-boot partition (p1 on Ubuntu RPi — primary cloud-init seed)
+        sb.AppendLine("BOOT_PART=''");
+        sb.AppendLine("for PART in ${LOOP}p1 ${LOOP}p2 ${LOOP}p3 ${LOOP}p4; do");
+        sb.AppendLine("  [ -b \"$PART\" ] || continue");
+        sb.AppendLine("  FSTYPE=$(blkid -o value -s TYPE \"$PART\" 2>/dev/null || echo '')");
+        sb.AppendLine("  if [ \"$FSTYPE\" = 'vfat' ]; then BOOT_PART=\"$PART\"; break; fi");
+        sb.AppendLine("done");
+        sb.AppendLine();
+
+        // Find ext4 root/writable partition (p2 on Ubuntu RPi)
         sb.AppendLine("ROOT_PART=''");
         sb.AppendLine("for PART in ${LOOP}p2 ${LOOP}p1 ${LOOP}p3 ${LOOP}p4; do");
         sb.AppendLine("  [ -b \"$PART\" ] || continue");
@@ -115,16 +126,36 @@ public class ImageBuilderService(string wslDistro)
         sb.AppendLine("fi");
         sb.AppendLine("echo \"  Root partition: $ROOT_PART\"");
         sb.AppendLine();
+
+        // Inject into FAT32 system-boot (Ubuntu RPi primary cloud-init datasource location)
+        sb.AppendLine("if [ -n \"$BOOT_PART\" ]; then");
+        sb.AppendLine("  echo \"  Found system-boot (FAT32): $BOOT_PART — writing cloud-init seed...\"");
+        sb.AppendLine("  mkdir -p /tmp/baumc-boot");
+        sb.AppendLine("  mount \"$BOOT_PART\" /tmp/baumc-boot");
+        sb.AppendLine($"  cp '{wslTmp}/user-data' /tmp/baumc-boot/user-data");
+        sb.AppendLine($"  cp '{wslTmp}/meta-data' /tmp/baumc-boot/meta-data");
+        if (netplan != null)
+            sb.AppendLine($"  cp '{wslTmp}/90-baum-network.yaml' /tmp/baumc-boot/network-config");
+        sb.AppendLine("  sync");
+        sb.AppendLine("  umount /tmp/baumc-boot");
+        sb.AppendLine("else");
+        sb.AppendLine("  echo '  No FAT32 system-boot partition found, skipping.'");
+        sb.AppendLine("fi");
+        sb.AppendLine();
+
+        // Also seed into ext4 root NoCloud directory (fallback for images without FAT32)
         sb.AppendLine("mkdir -p /tmp/baumc-mnt");
         sb.AppendLine("mount \"$ROOT_PART\" /tmp/baumc-mnt");
-        sb.AppendLine();
-        sb.AppendLine("mkdir -p /tmp/baumc-mnt/etc/cloud/cloud.cfg.d");
-        sb.AppendLine($"cp '{wslTmp}/user-data' /tmp/baumc-mnt/etc/cloud/cloud.cfg.d/user-data");
-        sb.AppendLine($"cp '{wslTmp}/meta-data' /tmp/baumc-mnt/etc/cloud/cloud.cfg.d/meta-data");
-        sb.AppendLine("chmod 644 /tmp/baumc-mnt/etc/cloud/cloud.cfg.d/user-data /tmp/baumc-mnt/etc/cloud/cloud.cfg.d/meta-data");
+        sb.AppendLine("mkdir -p /tmp/baumc-mnt/var/lib/cloud/seed/nocloud");
+        sb.AppendLine($"cp '{wslTmp}/user-data' /tmp/baumc-mnt/var/lib/cloud/seed/nocloud/user-data");
+        sb.AppendLine($"cp '{wslTmp}/meta-data' /tmp/baumc-mnt/var/lib/cloud/seed/nocloud/meta-data");
+        sb.AppendLine("chmod 644 /tmp/baumc-mnt/var/lib/cloud/seed/nocloud/user-data /tmp/baumc-mnt/var/lib/cloud/seed/nocloud/meta-data");
 
         if (netplan != null)
         {
+            sb.AppendLine($"cp '{wslTmp}/90-baum-network.yaml' /tmp/baumc-mnt/var/lib/cloud/seed/nocloud/network-config");
+            sb.AppendLine("chmod 644 /tmp/baumc-mnt/var/lib/cloud/seed/nocloud/network-config");
+            // Also write directly to /etc/netplan so networking applies even if cloud-init skips
             sb.AppendLine("mkdir -p /tmp/baumc-mnt/etc/netplan");
             sb.AppendLine($"cp '{wslTmp}/90-baum-network.yaml' /tmp/baumc-mnt/etc/netplan/90-baum-network.yaml");
             sb.AppendLine("chmod 600 /tmp/baumc-mnt/etc/netplan/90-baum-network.yaml");
